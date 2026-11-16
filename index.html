@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="pt-BR" translate="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="google" content="notranslate" />
+  <title>Lava Rápido Pro - Gestão & Nuvem</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Firebase SDK (Compat v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea, select {
+      user-select: auto;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="text-slate-800 pb-24">
+
+  <!-- ========================================================= -->
+  <!-- TELA DE BLOQUEIO (LICENÇA EXPIRADA OU REVOGADA)           -->
+  <!-- ========================================================= -->
+  <div id="lock-screen" class="hidden fixed inset-0 z-50 bg-slate-900 text-white flex flex-col justify-between p-6 overflow-y-auto">
+    <div class="max-w-md mx-auto w-full my-auto space-y-6">
+      
+      <!-- Cabeçalho com Gatilho Secreto (5 toques) -->
+      <div class="text-center space-y-2">
+        <div id="lock-secret-trigger" onclick="handleSecretTap()" class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-500/30 cursor-pointer active:scale-95 transition">
+          <i data-lucide="lock" class="w-8 h-8 text-white"></i>
+        </div>
+        <h1 class="text-2xl font-extrabold tracking-tight">Período de Acesso Encerrado</h1>
+        <p id="lock-reason-text" class="text-slate-400 text-sm">
+          Seu período de avaliação ou assinatura mensal expirou. Renove sua chave para continuar acessando seu pátio e clientes.
+        </p>
+      </div>
+
+      <!-- Box ID do Dispositivo (Também funciona como gatilho secreto 5x) -->
+      <div onclick="handleSecretTap()" class="bg-slate-800/90 border border-slate-700 rounded-2xl p-4 text-center space-y-2 cursor-pointer">
+        <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">ID deste Dispositivo</span>
+        <div class="flex items-center justify-center gap-2">
+          <code id="lock-device-id" class="notranslate text-xl font-mono font-bold text-amber-400 tracking-wider">CEL-000000</code>
+          <button type="button" onclick="event.stopPropagation(); copyDeviceId()" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 transition" title="Copiar ID">
+            <i data-lucide="copy" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-400">Envie este ID no WhatsApp para receber sua chave de 30 dias.</p>
+      </div>
+
+      <!-- Botão WhatsApp Suporte / Compra -->
+      <button type="button" onclick="requestKeyWhatsApp()" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition active:scale-[0.98]">
+        <i data-lucide="message-circle" class="w-5 h-5"></i>
+        Solicitar Chave de 30 Dias (R$ 15/mês)
+      </button>
+
+      <!-- Formulário de Ativação -->
+      <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 space-y-3">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Já possui uma chave? Ative abaixo:</label>
+        <input type="text" id="lock-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-center font-mono text-base uppercase tracking-widest text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+        <button type="button" onclick="activateLicenseFromInput('lock-key-input')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition active:scale-[0.98]">
+          Liberar Acesso Agora
+        </button>
+      </div>
+
+    </div>
+    <p class="text-center text-xs text-slate-500 mt-6">Lava Rápido Pro • Sincronizado na Nuvem</p>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- APLICATIVO PRINCIPAL                                      -->
+  <!-- ========================================================= -->
+  <div id="main-app" class="hidden">
+    
+    <!-- TOP BAR -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-3">
+      <div class="max-w-2xl mx-auto flex items-center justify-between gap-2">
+        
+        <!-- Logo e Nome (Gatilho Secreto 5 toques) -->
+        <div onclick="handleSecretTap()" class="flex items-center gap-2.5 cursor-pointer min-w-0">
+          <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm">
+            <i data-lucide="car" class="w-5 h-5"></i>
+          </div>
+          <div class="truncate">
+            <h1 id="header-shop-name" class="font-extrabold text-slate-900 text-base leading-tight truncate">Auto Estética Pro</h1>
+            <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <span id="cloud-status-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span id="cloud-status-text">Nuvem Ativa</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botões de Ação Rápida -->
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" onclick="openLicenseModal()" id="license-badge" class="px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 hover:bg-amber-200 transition">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+            <span id="license-badge-text">Teste: 3d</span>
+          </button>
+
+          <button type="button" onclick="openNewOrderModal()" class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition active:scale-95">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>Nova OS</span>
+          </button>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- CONTEÚDO DAS ABAS -->
+    <main class="max-w-2xl mx-auto p-4 space-y-5">
+
+      <!-- ==================== ABA 1: PÁTIO ==================== -->
+      <section id="tab-patio" class="space-y-4 animate-fade-in">
+        
+        <!-- KPIs Financeiros e Operacionais -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase">No Pátio</span>
+            <p id="kpi-active" class="text-xl font-extrabold text-blue-600 mt-0.5">0</p>
+          </div>
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase">Concluídos</span>
+            <p id="kpi-done" class="text-xl font-extrabold text-emerald-600 mt-0.5">0</p>
+          </div>
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase">Caixa Hoje</span>
+            <p id="kpi-revenue" class="text-lg font-extrabold text-slate-900 mt-0.5">R$ 0</p>
+          </div>
+        </div>
+
+        <!-- Filtros de Status -->
+        <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <button type="button" onclick="setOrderFilter('all')" data-filter="all" class="filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white shrink-0">Todos</button>
+          <button type="button" onclick="setOrderFilter('washing')" data-filter="washing" class="filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0">Lavando / Fila</button>
+          <button type="button" onclick="setOrderFilter('ready')" data-filter="ready" class="filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0">Prontos</button>
+          <button type="button" onclick="setOrderFilter('delivered')" data-filter="delivered" class="filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0">Entregues</button>
+        </div>
+
+        <!-- Lista de Ordens de Serviço -->
+        <div id="orders-list" class="space-y-3"></div>
+      </section>
+
+      <!-- ==================== ABA 2: SERVIÇOS ==================== -->
+      <section id="tab-servicos" class="hidden space-y-4 animate-fade-in">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Tabela de Serviços</h2>
+            <p class="text-xs text-slate-500">Preços diferenciados por porte do veículo</p>
+          </div>
+          <button type="button" onclick="openServiceModal()" class="px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm">
+            <i data-lucide="plus" class="w-4 h-4"></i> Novo Serviço
+          </button>
+        </div>
+
+        <div id="services-list" class="space-y-3"></div>
+      </section>
+
+      <!-- ==================== ABA 3: WHATSAPP ==================== -->
+      <section id="tab-whatsapp" class="hidden space-y-4 animate-fade-in">
+        <div>
+          <h2 class="text-lg font-extrabold text-slate-900">Mensagens Automáticas</h2>
+          <p class="text-xs text-slate-500">Personalize os textos enviados aos clientes. Use as variáveis: <code class="bg-slate-200 px-1 rounded">{cliente}</code>, <code class="bg-slate-200 px-1 rounded">{veiculo}</code>, <code class="bg-slate-200 px-1 rounded">{placa}</code>, <code class="bg-slate-200 px-1 rounded">{servico}</code>, <code class="bg-slate-200 px-1 rounded">{valor}</code>, <code class="bg-slate-200 px-1 rounded">{pix}</code></p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">1. Check-in (Carro entrou no pátio)</label>
+            <textarea id="tpl-checkin" rows="3" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">2. Veículo Pronto para Retirada</label>
+            <textarea id="tpl-ready" rows="3" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">3. Cobrança / Envio de PIX</label>
+            <textarea id="tpl-pix" rows="3" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500"></textarea>
+          </div>
+          <button type="button" onclick="saveTemplates()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition">
+            Salvar Modelos de Mensagem
+          </button>
+        </div>
+      </section>
+
+      <!-- ==================== ABA 4: CLIENTES ==================== -->
+      <section id="tab-clientes" class="hidden space-y-4 animate-fade-in">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Clientes & Fidelidade</h2>
+            <p class="text-xs text-slate-500">Histórico e contagem de lavagens</p>
+          </div>
+        </div>
+
+        <input type="text" id="client-search" oninput="renderClients()" placeholder="Buscar por nome, placa ou telefone..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+
+        <div id="clients-list" class="space-y-2.5"></div>
+      </section>
+
+      <!-- ==================== ABA 5: AJUSTES ==================== -->
+      <section id="tab-ajustes" class="hidden space-y-4 animate-fade-in">
+        <div>
+          <h2 class="text-lg font-extrabold text-slate-900">Configurações da Loja</h2>
+          <p class="text-xs text-slate-500">Dados exibidos nos comprovantes e mensagens</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 space-y-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nome do Lava Rápido</label>
+            <input type="text" id="cfg-shop-name" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Sua Chave PIX (para cobranças)</label>
+            <input type="text" id="cfg-pix-key" placeholder="CPF, CNPJ, E-mail ou Celular" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Meta Cartão Fidelidade (Lavagens para ganhar 1 grátis)</label>
+            <input type="number" id="cfg-loyalty-goal" min="1" max="50" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm" />
+          </div>
+          <button type="button" onclick="saveSettings()" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition">
+            Salvar Configurações
+          </button>
+        </div>
+
+        <!-- Card Status da Assinatura -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold text-slate-400 uppercase">Assinatura & ID</span>
+            <p class="notranslate font-mono font-bold text-slate-800 text-sm" id="settings-device-id">CEL-000000</p>
+          </div>
+          <button type="button" onclick="openLicenseModal()" class="px-3.5 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl text-xs hover:bg-blue-100">
+            Gerenciar Licença
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- NAVEGAÇÃO INFERIOR -->
+    <nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 px-2 py-1.5">
+      <div class="max-w-2xl mx-auto grid grid-cols-5 gap-1">
+        <button type="button" onclick="switchTab('patio')" data-tab="patio" class="nav-btn flex flex-col items-center py-1.5 text-blue-600">
+          <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+          <span class="text-[10px] font-bold mt-0.5">Pátio</span>
+        </button>
+        <button type="button" onclick="switchTab('servicos')" data-tab="servicos" class="nav-btn flex flex-col items-center py-1.5 text-slate-400">
+          <i data-lucide="sparkles" class="w-5 h-5"></i>
+          <span class="text-[10px] font-bold mt-0.5">Serviços</span>
+        </button>
+        <button type="button" onclick="switchTab('whatsapp')" data-tab="whatsapp" class="nav-btn flex flex-col items-center py-1.5 text-slate-400">
+          <i data-lucide="message-circle" class="w-5 h-5"></i>
+          <span class="text-[10px] font-bold mt-0.5">WhatsApp</span>
+        </button>
+        <button type="button" onclick="switchTab('clientes')" data-tab="clientes" class="nav-btn flex flex-col items-center py-1.5 text-slate-400">
+          <i data-lucide="users" class="w-5 h-5"></i>
+          <span class="text-[10px] font-bold mt-0.5">Clientes</span>
+        </button>
+        <button type="button" onclick="switchTab('ajustes')" data-tab="ajustes" class="nav-btn flex flex-col items-center py-1.5 text-slate-400">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+          <span class="text-[10px] font-bold mt-0.5">Ajustes</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: NOVA ORDEM DE SERVIÇO                              -->
+  <!-- ========================================================= -->
+  <div id="modal-new-order" class="hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold text-slate-900">Nova Ordem de Serviço</h3>
+        <button type="button" onclick="closeModal('modal-new-order')" class="p-1.5 rounded-full bg-slate-100 text-slate-500">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Placa *</label>
+            <input type="text" id="os-plate" oninput="autoFillByPlate()" placeholder="ABC-1234" class="notranslate w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm uppercase font-bold" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Modelo / Cor *</label>
+            <input type="text" id="os-vehicle" placeholder="Ex: Onix Prata" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Nome do Cliente *</label>
+            <input type="text" id="os-client" placeholder="Nome" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">WhatsApp</label>
+            <input type="tel" id="os-phone" placeholder="(11) 99999-9999" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Porte do Veículo</label>
+          <select id="os-size" onchange="updateOrderPricePreview()" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white font-medium">
+            <option value="hatch">Hatch / Compacto</option>
+            <option value="sedan">Sedan</option>
+            <option value="suv">SUV / Caminhonete</option>
+            <option value="moto">Moto</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Serviço</label>
+          <select id="os-service" onchange="updateOrderPricePreview()" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white font-medium"></select>
+        </div>
+
+        <div class="bg-slate-50 p-3 rounded-xl flex items-center justify-between border border-slate-200">
+          <span class="text-xs font-bold text-slate-500">Valor Final (R$):</span>
+          <input type="number" id="os-price" step="0.01" class="w-28 text-right font-extrabold text-lg text-blue-600 bg-white border border-slate-200 rounded-lg px-2 py-1" />
+        </div>
+
+        <button type="button" onclick="createOrder()" class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition">
+          Registrar Entrada no Pátio
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: NOVO / EDITAR SERVIÇO                              -->
+  <!-- ========================================================= -->
+  <div id="modal-service" class="hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 id="service-modal-title" class="text-lg font-extrabold text-slate-900">Novo Serviço</h3>
+        <button type="button" onclick="closeModal('modal-service')" class="p-1.5 rounded-full bg-slate-100 text-slate-500">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="srv-id" />
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Nome do Serviço</label>
+          <input type="text" id="srv-name" placeholder="Ex: Lavagem Completa + Cera" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm" />
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Preço Hatch (R$)</label>
+            <input type="number" id="srv-hatch" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Preço Sedan (R$)</label>
+            <input type="number" id="srv-sedan" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Preço SUV (R$)</label>
+            <input type="number" id="srv-suv" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Preço Moto (R$)</label>
+            <input type="number" id="srv-moto" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <button type="button" onclick="saveService()" class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl">
+          Salvar Serviço
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: STATUS DA LICENÇA DO USUÁRIO                       -->
+  <!-- ========================================================= -->
+  <div id="modal-license" class="hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold text-slate-900">Status da Licença do App</h3>
+        <button type="button" onclick="closeModal('modal-license')" class="p-1.5 rounded-full bg-slate-100 text-slate-500">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+        <div>
+          <span class="text-[11px] font-bold uppercase text-slate-400">Plano Atual</span>
+          <p id="modal-lic-status" class="font-extrabold text-slate-900 text-base">Período de Avaliação</p>
+          <p id="modal-lic-expiry" class="text-xs text-slate-500 mt-0.5">Válido até --/--/----</p>
+        </div>
+        <span id="modal-lic-days-pill" class="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 font-extrabold text-sm">3d</span>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+        <div>
+          <span class="text-[11px] font-bold uppercase text-slate-400">ID deste Celular</span>
+          <p id="modal-lic-device" class="notranslate font-mono font-extrabold text-slate-900 text-lg">CEL-000000</p>
+        </div>
+        <button type="button" onclick="copyDeviceId()" class="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100">
+          Copiar ID
+        </button>
+      </div>
+
+      <button type="button" onclick="requestKeyWhatsApp()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
+        <i data-lucide="message-circle" class="w-4 h-4"></i>
+        Renovar / Comprar Chave (+30 Dias)
+      </button>
+
+      <div class="space-y-2 pt-1">
+        <label class="block text-xs font-bold text-slate-700">Inserir Nova Chave de Liberação:</label>
+        <div class="flex gap-2">
+          <input type="text" id="modal-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate flex-1 border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase" />
+          <button type="button" onclick="activateLicenseFromInput('modal-key-input')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm">
+            Ativar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL OCULTO: PAINEL ADMINISTRATIVO MESTRE                -->
+  <!-- ========================================================= -->
+  <div id="modal-admin" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-700 text-white w-full max-w-md rounded-3xl p-5 space-y-4 my-auto shadow-2xl">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+            <i data-lucide="key-round" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm">Painel Mestre • Chaves</h3>
+            <p class="text-[11px] text-slate-400">Acesso Restrito ao Administrador</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeAdminPanel()" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Tela 1: Login Admin -->
+      <div id="admin-login-view" class="space-y-3 py-2">
+        <label class="block text-xs font-semibold text-slate-300">Digite a Senha Mestra:</label>
+        <input type="password" id="admin-pass-input" placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" />
+        <button type="button" onclick="verifyAdminLogin()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl transition">
+          Entrar no Painel
+        </button>
+      </div>
+
+      <!-- Tela 2: Gerenciador de Chaves e Senha -->
+      <div id="admin-dashboard-view" class="hidden space-y-4">
+        
+        <!-- Navegação interna do Admin -->
+        <div class="grid grid-cols-2 gap-2 bg-slate-800 p-1 rounded-xl">
+          <button type="button" onclick="switchAdminSubtab('keys')" id="admin-tab-keys" class="py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950">Gerar Chaves</button>
+          <button type="button" onclick="switchAdminSubtab('password')" id="admin-tab-password" class="py-1.5 rounded-lg text-xs font-bold text-slate-300">Senha Admin</button>
+        </div>
+
+        <!-- Sub-aba: Gerador de Chaves -->
+        <div id="admin-sub-keys" class="space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-semibold text-slate-300">ID do Celular do Cliente:</label>
+              <button type="button" onclick="fillOwnDeviceId()" class="text-[11px] text-amber-400 hover:underline">Usar meu ID</button>
+            </div>
+            <input type="text" id="admin-target-device" placeholder="CEL-XXXXXX" class="notranslate w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase text-white" />
+          </div>
+
+          <button type="button" onclick="adminGenerateKey()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            Gerar Chave de 30 Dias
+          </button>
+
+          <!-- Resultado da Chave Gerada -->
+          <div id="admin-generated-box" class="hidden bg-slate-950 border border-emerald-500/40 rounded-2xl p-3.5 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-emerald-400 font-bold uppercase">Chave Gerada (+30 Dias):</span>
+              <span class="text-[10px] text-slate-400">Uso Único</span>
+            </div>
+            <code id="admin-generated-code" class="notranslate block text-center font-mono text-lg font-extrabold text-amber-400 tracking-wider py-1">LAVA30-XXXX-XXXXXX</code>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" onclick="copyGeneratedKey()" class="py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copiar
+              </button>
+              <button type="button" onclick="sendGeneratedKeyWhatsApp()" class="py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                <i data-lucide="send" class="w-3.5 h-3.5"></i> Enviar Whats
+              </button>
+            </div>
+          </div>
+
+          <!-- Histórico Recente -->
+          <div class="space-y-1.5 pt-1">
+            <span class="text-[11px] font-bold uppercase text-slate-400">Últimas Chaves Emitidas:</span>
+            <div id="admin-keys-history" class="max-h-36 overflow-y-auto space-y-1.5 pr-1"></div>
+          </div>
+        </div>
+
+        <!-- Sub-aba: Alterar Senha Mestra -->
+        <div id="admin-sub-password" class="hidden space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Nova Senha Mestra:</label>
+            <input type="password" id="admin-new-pass" placeholder="Mínimo 4 caracteres" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Confirmar Nova Senha:</label>
+            <input type="password" id="admin-confirm-pass" placeholder="Repita a nova senha" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white" />
+          </div>
+          <button type="button" onclick="changeAdminPassword()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-sm">
+            Atualizar Senha Mestra
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] px-4 py-3 rounded-2xl shadow-xl text-white text-xs font-bold text-center transition-all"></div>
+
+  <!-- ========================================================= -->
+  <!-- JAVASCRIPT & FIREBASE FIRESTORE                           -->
+  <!-- ========================================================= -->
+  <script>
+    // 1. CONFIGURAÇÃO EMBUTIDA DO FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyB1FAyixHXMIkf8yZjrbyKXvQ5jEU0sVr0",
+      authDomain: "lavarapidopro.firebaseapp.com",
+      projectId: "lavarapidopro",
+      storageBucket: "lavarapidopro.firebasestorage.app",
+      messagingSenderId: "1060198007406",
+      appId: "1:1060198007406:web:f8a7c98a7e9a0d36189c7f",
+      measurementId: "G-TT2GNSD6YE"
+    };
+
+    let db = null;
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      db = firebase.firestore();
+    } catch (e) {
+      console.error("Erro ao iniciar Firebase:", e);
+    }
+
+    // 2. CONSTANTES E ESTADO GLOBAL
+    const SECRET_SALT = "LAVA_PRO_2026_SECURE_KEY";
+    const ADMIN_WHATSAPP = "5519989450061"; 
+    const STORAGE_KEYS = {
+      DEVICE_ID: "lrp_device_id",
+      LICENSE: "lrp_license_data",
+      DATA: "lrp_app_data",
+      ADMIN_PASS: "lrp_admin_pass",
+      KEY_HISTORY: "lrp_admin_keys"
+    };
+
+    let currentOrderFilter = "all";
+    let isRemoteSyncing = false;
+    let lastGeneratedKey = "";
+
+    const defaultAppData = {
+      settings: {
+        shopName: "Auto Estética Pro",
+        pixKey: "",
+        loyaltyGoal: 10
+      },
+      templates: {
+        checkin: "Olá {cliente}! 🚗 Recebemos seu {veiculo} ({placa}) para {servico}. Avisaremos assim que estiver pronto!",
+        ready: "Olá {cliente}! ✨ Seu {veiculo} ({placa}) já está limpo e pronto para retirada!",
+        pix: "Olá {cliente}! O valor do serviço ({servico}) ficou em {valor}. Nossa chave PIX é: {pix}. Obrigado pela preferência!"
+      },
+      services: [
+        { id: "srv1", name: "Lavagem Simples", hatch: 35, sedan: 40, suv: 50, moto: 25 },
+        { id: "srv2", name: "Lavagem Completa + Cera", hatch: 55, sedan: 65, suv: 80, moto: 35 },
+        { id: "srv3", name: "Higienização Interna", hatch: 120, sedan: 140, suv: 170, moto: 50 }
+      ],
+      orders: [],
+      clients: []
+    };
+
+    let appState = JSON.parse(JSON.stringify(defaultAppData));
+    let licenseState = {
+      expiresAt: null,
+      type: "trial",
+      revoked: false
+    };
+
+    // 3. UTILITÁRIOS DE NORMALIZAÇÃO E ID DO DISPOSITIVO
+    function normalizeCodeString(str) {
+      if (!str) return "";
+      return str
+        .toString()
+        .replace(/[\u200B-\u200D\uFEFF\s]/g, "")
+        .replace(/[–—−]/g, "-")
+        .toUpperCase()
+        .trim();
+    }
+
+    function getDeviceId() {
+      let id = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+      if (!id || !/^CEL-[A-Z0-9]{6}$/.test(id)) {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        let code = "";
+        for (let i = 0; i < 6; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        id = "CEL-" + code;
+        localStorage.setItem(STORAGE_KEYS.DEVICE_ID, id);
+      }
+      return id;
+    }
+
+    function computeLicenseHash(deviceId, salt) {
+      const raw = `${normalizeCodeString(deviceId)}-${normalizeCodeString(salt)}-${SECRET_SALT}`;
+      let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+      for (let i = 0; i < raw.length; i++) {
+        const ch = raw.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      const combined = (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36).toUpperCase();
+      return combined.padStart(6, "X").slice(-6);
+    }
+
+    function showToast(msg, type = "info") {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = "fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[92%] px-4 py-3 rounded-2xl shadow-xl text-white text-xs font-bold text-center transition-all";
+      if (type === "error") el.classList.add("bg-rose-600");
+      else if (type === "success") el.classList.add("bg-emerald-600");
+      else el.classList.add("bg-slate-900");
+      el.classList.remove("hidden");
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => el.classList.add("hidden"), 3200);
+    }
+
+    // 4. SINCRONIZAÇÃO AUTORITATIVA COM O FIRESTORE
+    async function initCloudSyncAndLicense() {
+      const deviceId = getDeviceId();
+      document.getElementById("lock-device-id").textContent = deviceId;
+      document.getElementById("settings-device-id").textContent = deviceId;
+      document.getElementById("modal-lic-device").textContent = deviceId;
+
+      const savedLocalData = localStorage.getItem(STORAGE_KEYS.DATA);
+      if (savedLocalData) {
+        try { appState = { ...defaultAppData, ...JSON.parse(savedLocalData) }; } catch (e) {}
+      }
+
+      const savedLocalLic = localStorage.getItem(STORAGE_KEYS.LICENSE);
+      if (savedLocalLic) {
+        try { licenseState = JSON.parse(savedLocalLic); } catch (e) {}
+      }
+
+      if (!db) {
+        ensureTrialIfNewLocal();
+        evaluateLicenseUI();
+        renderAll();
+        return;
+      }
+
+      const storeRef = db.collection("stores").doc(deviceId);
+
+      try {
+        const initialSnap = await storeRef.get();
+
+        if (!initialSnap.exists) {
+          const hadLocalBefore = Boolean(savedLocalData || savedLocalLic);
+
+          if (hadLocalBefore) {
+            resetLocalToRevokedState();
+            await storeRef.set({
+              deviceId: deviceId,
+              appData: defaultAppData,
+              license: licenseState,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          } else {
+            const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+            licenseState = {
+              expiresAt: Date.now() + threeDaysMs,
+              type: "trial",
+              revoked: false
+            };
+            localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+            localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+
+            await storeRef.set({
+              deviceId: deviceId,
+              appData: appState,
+              license: licenseState,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }
+        } else {
+          const cloudDoc = initialSnap.data();
+          if (cloudDoc.appData) {
+            appState = { ...defaultAppData, ...cloudDoc.appData };
+            localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+          }
+          if (cloudDoc.license) {
+            licenseState = cloudDoc.license;
+            localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+          }
+        }
+
+        storeRef.onSnapshot((docSnap) => {
+          if (!docSnap.exists) {
+            resetLocalToRevokedState();
+            evaluateLicenseUI();
+            renderAll();
+            showToast("Dados removidos pelo administrador. Acesso encerrado.", "error");
+            return;
+          }
+
+          const data = docSnap.data();
+          isRemoteSyncing = true;
+
+          if (data.appData) {
+            appState = { ...defaultAppData, ...data.appData };
+            localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+          }
+
+          if (data.license) {
+            licenseState = data.license;
+            localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+          }
+
+          evaluateLicenseUI();
+          renderAll();
+          isRemoteSyncing = false;
+        }, (err) => {
+          console.warn("Erro no listener Firestore:", err);
+          setCloudStatus(false);
+        });
+
+        setCloudStatus(true);
+      } catch (error) {
+        console.error("Falha na sincronização inicial:", error);
+        setCloudStatus(false);
+        ensureTrialIfNewLocal();
+      }
+
+      evaluateLicenseUI();
+      renderAll();
+    }
+
+    function resetLocalToRevokedState() {
+      appState = JSON.parse(JSON.stringify(defaultAppData));
+      licenseState = {
+        expiresAt: Date.now() - 1000,
+        type: "revoked",
+        revoked: true
+      };
+      localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+      localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+    }
+
+    function ensureTrialIfNewLocal() {
+      if (!licenseState || !licenseState.expiresAt) {
+        licenseState = {
+          expiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
+          type: "trial",
+          revoked: false
+        };
+        localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+      }
+    }
+
+    function setCloudStatus(online) {
+      const dot = document.getElementById("cloud-status-dot");
+      const text = document.getElementById("cloud-status-text");
+      if (online) {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+        text.textContent = "Nuvem Sincronizada";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-amber-500";
+        text.textContent = "Modo Offline";
+      }
+    }
+
+    async function persistStateToCloud() {
+      localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+      localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+
+      if (!db || isRemoteSyncing) return;
+      const deviceId = getDeviceId();
+      try {
+        await db.collection("stores").doc(deviceId).set({
+          deviceId: deviceId,
+          appData: appState,
+          license: licenseState,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.error("Erro ao salvar no Firestore:", e);
+      }
+    }
+
+    // 5. VALIDAÇÃO E ATIVAÇÃO DE LICENÇA
+    function evaluateLicenseUI() {
+      const now = Date.now();
+      const isRevoked = Boolean(licenseState.revoked);
+      const isValid = !isRevoked && licenseState.expiresAt && licenseState.expiresAt > now;
+
+      const lockScreen = document.getElementById("lock-screen");
+      const mainApp = document.getElementById("main-app");
+
+      if (!isValid) {
+        lockScreen.classList.remove("hidden");
+        mainApp.classList.add("hidden");
+        const reasonEl = document.getElementById("lock-reason-text");
+        if (isRevoked) {
+          reasonEl.textContent = "Esta assinatura foi encerrada ou removida no sistema. Solicite uma nova chave para reativar.";
+        } else {
+          reasonEl.textContent = "Seu período de avaliação ou assinatura mensal expirou. Renove sua chave para continuar.";
+        }
+        return;
+      }
+
+      lockScreen.classList.add("hidden");
+      mainApp.classList.remove("hidden");
+
+      const diffMs = licenseState.expiresAt - now;
+      const daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      const expDate = new Date(licenseState.expiresAt).toLocaleDateString("pt-BR");
+
+      const badge = document.getElementById("license-badge");
+      const badgeText = document.getElementById("license-badge-text");
+
+      if (licenseState.type === "pro") {
+        badge.className = "px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 hover:bg-emerald-200 transition";
+        badgeText.textContent = `Pro: ${daysLeft}d`;
+        document.getElementById("modal-lic-status").textContent = "Assinatura Mensal Ativa";
+        document.getElementById("modal-lic-days-pill").className = "px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-sm";
+      } else {
+        badge.className = "px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 hover:bg-amber-200 transition";
+        badgeText.textContent = `Teste: ${daysLeft}d`;
+        document.getElementById("modal-lic-status").textContent = "Período de Avaliação (3 Dias)";
+        document.getElementById("modal-lic-days-pill").className = "px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 font-extrabold text-sm";
+      }
+
+      document.getElementById("modal-lic-expiry").textContent = `Válido até ${expDate} (${daysLeft} dia(s) restante(s))`;
+      document.getElementById("modal-lic-days-pill").textContent = `${daysLeft}d`;
+    }
+
+    async function activateLicenseFromInput(inputId) {
+      const inputEl = document.getElementById(inputId);
+      const cleanKey = normalizeCodeString(inputEl ? inputEl.value : "");
+      const deviceId = getDeviceId();
+
+      if (!/^LAVA30-[A-Z0-9]{4}-[A-Z0-9]{6}$/.test(cleanKey)) {
+        showToast("Formato de chave inválido. Use LAVA30-XXXX-XXXXXX.", "error");
+        return;
+      }
+
+      const parts = cleanKey.split("-");
+      const salt = parts[1];
+      const signature = parts[2];
+      const expectedSig = computeLicenseHash(deviceId, salt);
+
+      if (signature !== expectedSig) {
+        showToast("Chave inválida para o ID deste aparelho.", "error");
+        return;
+      }
+
+      if (db) {
+        try {
+          const licRef = db.collection("licenses").doc(cleanKey);
+          const licSnap = await licRef.get();
+          if (licSnap.exists && licSnap.data().used === true) {
+            showToast("Esta chave já foi utilizada anteriormente.", "error");
+            return;
+          }
+          await licRef.set({
+            key: cleanKey,
+            deviceId: deviceId,
+            used: true,
+            usedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Aviso ao validar chave no Firestore:", e);
+        }
+      }
+
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const baseTime = (!licenseState.revoked && licenseState.expiresAt && licenseState.expiresAt > Date.now())
+        ? licenseState.expiresAt
+        : Date.now();
+
+      licenseState = {
+        expiresAt: baseTime + thirtyDaysMs,
+        type: "pro",
+        revoked: false,
+        lastKey: cleanKey
+      };
+
+      if (inputEl) inputEl.value = "";
+      await persistStateToCloud();
+      evaluateLicenseUI();
+      closeModal("modal-license");
+      showToast("Licença de 30 dias ativada com sucesso!", "success");
+    }
+
+    function copyDeviceId() {
+      const id = getDeviceId();
+      navigator.clipboard?.writeText(id);
+      showToast(`ID ${id} copiado!`, "success");
+    }
+
+    function requestKeyWhatsApp() {
+      const id = getDeviceId();
+      const text = encodeURIComponent(`Olá! Gostaria de ativar minha assinatura mensal (R$ 15,00) do Lava Rápido Pro.\n\nMeu ID do dispositivo é: *${id}*`);
+      window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${text}`, "_blank");
+    }
+
+    // 6. PAINEL ADMINISTRATIVO OCULTO (5 TOQUES)
+    let secretTapCount = 0;
+    let secretTapTimer = null;
+
+    function handleSecretTap() {
+      secretTapCount++;
+      clearTimeout(secretTapTimer);
+      secretTapTimer = setTimeout(() => { secretTapCount = 0; }, 1500);
+
+      if (secretTapCount >= 5) {
+        secretTapCount = 0;
+        openAdminPanel();
+      }
+    }
+
+    function openAdminPanel() {
+      document.getElementById("admin-pass-input").value = "";
+      document.getElementById("admin-login-view").classList.remove("hidden");
+      document.getElementById("admin-dashboard-view").classList.add("hidden");
+      document.getElementById("modal-admin").classList.remove("hidden");
+    }
+
+    function closeAdminPanel() {
+      document.getElementById("modal-admin").classList.add("hidden");
+    }
+
+    function getAdminPassword() {
+      return localStorage.getItem(STORAGE_KEYS.ADMIN_PASS) || "An#!123Pe";
+    }
+
+    function verifyAdminLogin() {
+      const typed = document.getElementById("admin-pass-input").value.trim();
+      if (typed === getAdminPassword()) {
+        document.getElementById("admin-login-view").classList.add("hidden");
+        document.getElementById("admin-dashboard-view").classList.remove("hidden");
+        switchAdminSubtab("keys");
+        renderAdminKeyHistory();
+      } else {
+        showToast("Senha mestra incorreta.", "error");
+      }
+    }
+
+    function switchAdminSubtab(tab) {
+      const btnKeys = document.getElementById("admin-tab-keys");
+      const btnPass = document.getElementById("admin-tab-password");
+      const subKeys = document.getElementById("admin-sub-keys");
+      const subPass = document.getElementById("admin-sub-password");
+
+      if (tab === "keys") {
+        btnKeys.className = "py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950";
+        btnPass.className = "py-1.5 rounded-lg text-xs font-bold text-slate-300";
+        subKeys.classList.remove("hidden");
+        subPass.classList.add("hidden");
+      } else {
+        btnPass.className = "py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950";
+        btnKeys.className = "py-1.5 rounded-lg text-xs font-bold text-slate-300";
+        subPass.classList.remove("hidden");
+        subKeys.classList.add("hidden");
+      }
+    }
+
+    function fillOwnDeviceId() {
+      document.getElementById("admin-target-device").value = getDeviceId();
+    }
+
+    async function adminGenerateKey() {
+      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
+      if (!/^CEL-[A-Z0-9]{6}$/.test(targetId)) {
+        showToast("Informe um ID válido no formato CEL-XXXXXX.", "error");
+        return;
+      }
+
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let salt = "";
+      for (let i = 0; i < 4; i++) {
+        salt += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      const signature = computeLicenseHash(targetId, salt);
+      const fullKey = `LAVA30-${salt}-${signature}`;
+      lastGeneratedKey = fullKey;
+
+      document.getElementById("admin-generated-code").textContent = fullKey;
+      document.getElementById("admin-generated-box").classList.remove("hidden");
+
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEYS.KEY_HISTORY) || "[]");
+      history.unshift({
+        key: fullKey,
+        deviceId: targetId,
+        date: new Date().toLocaleDateString("pt-BR")
+      });
+      localStorage.setItem(STORAGE_KEYS.KEY_HISTORY, JSON.stringify(history.slice(0, 20)));
+      renderAdminKeyHistory();
+
+      if (db) {
+        try {
+          await db.collection("licenses").doc(fullKey).set({
+            key: fullKey,
+            deviceId: targetId,
+            used: false,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (e) {
+          console.warn("Erro ao registrar chave na nuvem:", e);
+        }
+      }
+
+      showToast("Chave de 30 dias gerada!", "success");
+    }
+
+    function copyGeneratedKey() {
+      if (!lastGeneratedKey) return;
+      navigator.clipboard?.writeText(lastGeneratedKey);
+      showToast("Chave copiada!", "success");
+    }
+
+    function sendGeneratedKeyWhatsApp() {
+      if (!lastGeneratedKey) return;
+      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
+      const msg = encodeURIComponent(`✅ *Acesso Liberado - Lava Rápido Pro!*\n\n📱 *ID:* ${targetId}\n🔑 *Chave (+30 Dias):*\n*${lastGeneratedKey}*\n\nBasta colar a chave no aplicativo para liberar seu acesso. Obrigado!`);
+      window.open(`https://wa.me/?text=${msg}`, "_blank");
+    }
+
+    function renderAdminKeyHistory() {
+      const container = document.getElementById("admin-keys-history");
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEYS.KEY_HISTORY) || "[]");
+      if (!history.length) {
+        container.innerHTML = `<p class="text-xs text-slate-500">Nenhuma chave gerada ainda.</p>`;
+        return;
+      }
+      container.innerHTML = history.map(item => `
+        <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+          <div>
+            <p class="notranslate font-mono font-bold text-amber-400">${item.key}</p>
+            <p class="notranslate text-[10px] text-slate-400">${item.deviceId} • ${item.date}</p>
+          </div>
+          <button type="button" onclick="navigator.clipboard?.writeText('${item.key}'); showToast('Chave copiada!')" class="p-1.5 bg-slate-700 rounded-lg text-slate-200">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      `).join("");
+      lucide.createIcons();
+    }
+
+    function changeAdminPassword() {
+      const p1 = document.getElementById("admin-new-pass").value.trim();
+      const p2 = document.getElementById("admin-confirm-pass").value.trim();
+      if (p1.length < 4) {
+        showToast("A senha deve ter pelo menos 4 caracteres.", "error");
+        return;
+      }
+      if (p1 !== p2) {
+        showToast("As senhas não coincidem.", "error");
+        return;
+      }
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PASS, p1);
+      document.getElementById("admin-new-pass").value = "";
+      document.getElementById("admin-confirm-pass").value = "";
+      showToast("Senha mestra atualizada!", "success");
+    }
+
+    // 7. NAVEGAÇÃO E RENDERIZAÇÃO DAS FUNCIONALIDADES DO APP
+    function switchTab(tabName) {
+      document.querySelectorAll("main > section").forEach(sec => sec.classList.add("hidden"));
+      document.getElementById(`tab-${tabName}`).classList.remove("hidden");
+
+      document.querySelectorAll(".nav-btn").forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+          btn.classList.remove("text-slate-400");
+          btn.classList.add("text-blue-600");
+        } else {
+          btn.classList.remove("text-blue-600");
+          btn.classList.add("text-slate-400");
+        }
+      });
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+    function openLicenseModal() {
+      evaluateLicenseUI();
+      document.getElementById("modal-license").classList.remove("hidden");
+    }
+
+    function renderAll() {
+      document.getElementById("header-shop-name").textContent = appState.settings.shopName || "Auto Estética Pro";
+      document.getElementById("cfg-shop-name").value = appState.settings.shopName || "";
+      document.getElementById("cfg-pix-key").value = appState.settings.pixKey || "";
+      document.getElementById("cfg-loyalty-goal").value = appState.settings.loyaltyGoal || 10;
+
+      document.getElementById("tpl-checkin").value = appState.templates.checkin || "";
+      document.getElementById("tpl-ready").value = appState.templates.ready || "";
+      document.getElementById("tpl-pix").value = appState.templates.pix || "";
+
+      renderOrders();
+      renderServices();
+      renderClients();
+      lucide.createIcons();
+    }
+
+    // ORDENS DE SERVIÇO (PÁTIO)
+    function setOrderFilter(filter) {
+      currentOrderFilter = filter;
+      document.querySelectorAll(".filter-btn").forEach(btn => {
+        if (btn.dataset.filter === filter) {
+          btn.className = "filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white shrink-0";
+        } else {
+          btn.className = "filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0";
+        }
+      });
+      renderOrders();
+    }
+
+    function renderOrders() {
+      const todayStr = new Date().toLocaleDateString("pt-BR");
+      const todayOrders = appState.orders.filter(o => o.date === todayStr);
+
+      const activeCount = appState.orders.filter(o => o.status === "washing").length;
+      const doneCount = todayOrders.filter(o => o.status === "ready" || o.status === "delivered").length;
+      const revenue = todayOrders
+        .filter(o => o.paid)
+        .reduce((acc, o) => acc + Number(o.price || 0), 0);
+
+      document.getElementById("kpi-active").textContent = activeCount;
+      document.getElementById("kpi-done").textContent = doneCount;
+      document.getElementById("kpi-revenue").textContent = `R$ ${revenue.toFixed(0)}`;
+
+      const filtered = appState.orders.filter(o => {
+        if (currentOrderFilter === "all") return true;
+        return o.status === currentOrderFilter;
+      });
+
+      const listEl = document.getElementById("orders-list");
+      if (!filtered.length) {
+        listEl.innerHTML = `
+          <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-2">
+            <p class="text-sm font-bold text-slate-600">Nenhum veículo nesta fila</p>
+            <p class="text-xs text-slate-400">Toque em "+ Nova OS" para registrar uma entrada.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const statusMeta = {
+        washing: { label: "Lavando / Fila", badge: "bg-blue-100 text-blue-700" },
+        ready: { label: "Pronto", badge: "bg-amber-100 text-amber-800" },
+        delivered: { label: "Entregue", badge: "bg-emerald-100 text-emerald-700" }
+      };
+
+      listEl.innerHTML = filtered.map(order => {
+        const st = statusMeta[order.status] || statusMeta.washing;
+        return `
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="notranslate px-2 py-0.5 bg-slate-900 text-white font-mono text-xs font-extrabold rounded-md">${order.plate}</span>
+                  <h4 class="font-extrabold text-slate-900 text-sm">${order.vehicle}</h4>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">${order.clientName} • <span class="font-semibold text-slate-700">${order.serviceName}</span></p>
+              </div>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${st.badge}">${st.label}</span>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-slate-900 text-sm">R$ ${Number(order.price).toFixed(2)}</span>
+                <button type="button" onclick="toggleOrderPaid('${order.id}')" class="px-2 py-0.5 rounded-md text-[11px] font-bold ${order.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                  ${order.paid ? 'Pago' : 'Pendente'}
+                </button>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="sendOrderWhatsApp('${order.id}', 'ready')" class="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100" title="Avisar Pronto no WhatsApp">
+                  <i data-lucide="message-circle" class="w-4 h-4"></i>
+                </button>
+                <button type="button" onclick="sendOrderWhatsApp('${order.id}', 'pix')" class="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Enviar Cobrança PIX">
+                  <i data-lucide="qr-code" class="w-4 h-4"></i>
+                </button>
+                ${order.status === 'washing' ? `
+                  <button type="button" onclick="advanceOrderStatus('${order.id}', 'ready')" class="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold">Pronto</button>
+                ` : ''}
+                ${order.status === 'ready' ? `
+                  <button type="button" onclick="advanceOrderStatus('${order.id}', 'delivered')" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Entregar</button>
+                ` : ''}
+                <button type="button" onclick="deleteOrder('${order.id}')" class="p-2 rounded-xl text-slate-400 hover:text-rose-600" title="Excluir OS">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+      lucide.createIcons();
+    }
+
+    function openNewOrderModal() {
+      const sel = document.getElementById("os-service");
+      sel.innerHTML = appState.services.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+      document.getElementById("os-plate").value = "";
+      document.getElementById("os-vehicle").value = "";
+      document.getElementById("os-client").value = "";
+      document.getElementById("os-phone").value = "";
+      updateOrderPricePreview();
+      document.getElementById("modal-new-order").classList.remove("hidden");
+    }
+
+    function autoFillByPlate() {
+      const plate = normalizeCodeString(document.getElementById("os-plate").value);
+      const existing = appState.clients.find(c => normalizeCodeString(c.plate) === plate);
+      if (existing) {
+        document.getElementById("os-vehicle").value = existing.vehicle || "";
+        document.getElementById("os-client").value = existing.name || "";
+        document.getElementById("os-phone").value = existing.phone || "";
+      }
+    }
+
+    function updateOrderPricePreview() {
+      const size = document.getElementById("os-size").value;
+      const srvId = document.getElementById("os-service").value;
+      const srv = appState.services.find(s => s.id === srvId);
+      if (srv) {
+        document.getElementById("os-price").value = srv[size] || 0;
+      }
+    }
+
+    async function createOrder() {
+      const plate = normalizeCodeString(document.getElementById("os-plate").value);
+      const vehicle = document.getElementById("os-vehicle").value.trim();
+      const clientName = document.getElementById("os-client").value.trim();
+      const phone = document.getElementById("os-phone").value.trim();
+      const size = document.getElementById("os-size").value;
+      const srvId = document.getElementById("os-service").value;
+      const price = parseFloat(document.getElementById("os-price").value) || 0;
+
+      if (!plate || !vehicle || !clientName) {
+        showToast("Preencha Placa, Veículo e Nome do Cliente.", "error");
+        return;
+      }
+
+      const srv = appState.services.find(s => s.id === srvId) || { name: "Lavagem" };
+
+      const newOrder = {
+        id: "OS-" + Date.now(),
+        plate,
+        vehicle,
+        clientName,
+        phone,
+        size,
+        serviceName: srv.name,
+        price,
+        status: "washing",
+        paid: false,
+        date: new Date().toLocaleDateString("pt-BR")
+      };
+
+      appState.orders.unshift(newOrder);
+
+      let client = appState.clients.find(c => normalizeCodeString(c.plate) === plate);
+      if (client) {
+        client.name = clientName;
+        client.vehicle = vehicle;
+        if (phone) client.phone = phone;
+        client.washes = (client.washes || 0) + 1;
+      } else {
+        appState.clients.unshift({
+          id: "CLI-" + Date.now(),
+          name: clientName,
+          phone,
+          plate,
+          vehicle,
+          washes: 1
+        });
+      }
+
+      closeModal("modal-new-order");
+      renderAll();
+      await persistStateToCloud();
+      showToast("Veículo registrado no pátio!", "success");
+
+      if (phone) {
+        sendOrderWhatsApp(newOrder.id, "checkin");
+      }
+    }
+
+    async function advanceOrderStatus(id, nextStatus) {
+      const order = appState.orders.find(o => o.id === id);
+      if (!order) return;
+      order.status = nextStatus;
+      if (nextStatus === "delivered") order.paid = true;
+      renderAll();
+      await persistStateToCloud();
+      showToast("Status atualizado!", "success");
+    }
+
+    async function toggleOrderPaid(id) {
+      const order = appState.orders.find(o => o.id === id);
+      if (!order) return;
+      order.paid = !order.paid;
+      renderAll();
+      await persistStateToCloud();
+    }
+
+    async function deleteOrder(id) {
+      appState.orders = appState.orders.filter(o => o.id !== id);
+      renderAll();
+      await persistStateToCloud();
+      showToast("Ordem de serviço removida.");
+    }
+
+    function sendOrderWhatsApp(orderId, tplType) {
+      const order = appState.orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const rawPhone = (order.phone || "").replace(/\D/g, "");
+      if (!rawPhone) {
+        showToast("Este cliente não tem WhatsApp cadastrado.", "error");
+        return;
+      }
+
+      const phoneWithDDI = rawPhone.startsWith("55") ? rawPhone : `55${rawPhone}`;
+      let msg = appState.templates[tplType] || "";
+      msg = msg
+        .replace(/{cliente}/g, order.clientName)
+        .replace(/{veiculo}/g, order.vehicle)
+        .replace(/{placa}/g, order.plate)
+        .replace(/{servico}/g, order.serviceName)
+        .replace(/{valor}/g, `R$ ${Number(order.price).toFixed(2)}`)
+        .replace(/{pix}/g, appState.settings.pixKey || "(Chave PIX não configurada)");
+
+      window.open(`https://wa.me/${phoneWithDDI}?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+
+    // SERVIÇOS
+    function renderServices() {
+      const el = document.getElementById("services-list");
+      el.innerHTML = appState.services.map(s => `
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="font-extrabold text-slate-900 text-sm">${s.name}</h4>
+            <div class="flex gap-1.5">
+              <button type="button" onclick="openServiceModal('${s.id}')" class="p-1.5 rounded-lg bg-slate-100 text-slate-600">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button type="button" onclick="deleteService('${s.id}')" class="p-1.5 rounded-lg bg-rose-50 text-rose-600">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5 text-center">
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">HATCH</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.hatch}</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">SEDAN</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.sedan}</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">SUV</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.suv}</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">MOTO</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.moto}</span>
+            </div>
+          </div>
+        </div>
+      `).join("");
+      lucide.createIcons();
+    }
+
+    function openServiceModal(id = null) {
+      if (id) {
+        const s = appState.services.find(item => item.id === id);
+        document.getElementById("service-modal-title").textContent = "Editar Serviço";
+        document.getElementById("srv-id").value = s.id;
+        document.getElementById("srv-name").value = s.name;
+        document.getElementById("srv-hatch").value = s.hatch;
+        document.getElementById("srv-sedan").value = s.sedan;
+        document.getElementById("srv-suv").value = s.suv;
+        document.getElementById("srv-moto").value = s.moto;
+      } else {
+        document.getElementById("service-modal-title").textContent = "Novo Serviço";
+        document.getElementById("srv-id").value = "";
+        document.getElementById("srv-name").value = "";
+        document.getElementById("srv-hatch").value = "";
+        document.getElementById("srv-sedan").value = "";
+        document.getElementById("srv-suv").value = "";
+        document.getElementById("srv-moto").value = "";
+      }
+      document.getElementById("modal-service").classList.remove("hidden");
+    }
+
+    async function saveService() {
+      const id = document.getElementById("srv-id").value;
+      const name = document.getElementById("srv-name").value.trim();
+      if (!name) {
+        showToast("Digite o nome do serviço.", "error");
+        return;
+      }
+      const payload = {
+        id: id || "SRV-" + Date.now(),
+        name,
+        hatch: Number(document.getElementById("srv-hatch").value) || 0,
+        sedan: Number(document.getElementById("srv-sedan").value) || 0,
+        suv: Number(document.getElementById("srv-suv").value) || 0,
+        moto: Number(document.getElementById("srv-moto").value) || 0
+      };
+
+      if (id) {
+        const idx = appState.services.findIndex(s => s.id === id);
+        if (idx > -1) appState.services[idx] = payload;
+      } else {
+        appState.services.push(payload);
+      }
+
+      closeModal("modal-service");
+      renderServices();
+      await persistStateToCloud();
+      showToast("Serviço salvo!", "success");
+    }
+
+    async function deleteService(id) {
+      appState.services = appState.services.filter(s => s.id !== id);
+      renderServices();
+      await persistStateToCloud();
+    }
+
+    // CLIENTES
+    function renderClients() {
+      const q = (document.getElementById("client-search").value || "").toLowerCase();
+      const goal = Number(appState.settings.loyaltyGoal) || 10;
+      const filtered = appState.clients.filter(c =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.plate || "").toLowerCase().includes(q) ||
+        (c.phone || "").includes(q)
+      );
+
+      const el = document.getElementById("clients-list");
+      if (!filtered.length) {
+        el.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">Nenhum cliente encontrado.</p>`;
+        return;
+      }
+
+      el.innerHTML = filtered.map(c => {
+        const washes = c.washes || 0;
+        const progress = washes % goal;
+        const earned = washes > 0 && progress === 0;
+        return `
+          <div class="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between">
+            <div>
+              <h4 class="font-extrabold text-slate-900 text-sm">${c.name}</h4>
+              <p class="text-xs text-slate-500"><span class="notranslate font-mono font-bold text-slate-700">${c.plate}</span> • ${c.vehicle || ''}</p>
+            </div>
+            <div class="text-right">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold ${earned ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-50 text-blue-600'}">
+                ${earned ? '🎁 1 Grátis!' : `${progress}/${goal} lavagens`}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // TEMPLATES E AJUSTES
+    async function saveTemplates() {
+      appState.templates.checkin = document.getElementById("tpl-checkin").value;
+      appState.templates.ready = document.getElementById("tpl-ready").value;
+      appState.templates.pix = document.getElementById("tpl-pix").value;
+      await persistStateToCloud();
+      showToast("Modelos de WhatsApp salvos!", "success");
+    }
+
+    async function saveSettings() {
+      appState.settings.shopName = document.getElementById("cfg-shop-name").value.trim() || "Auto Estética Pro";
+      appState.settings.pixKey = document.getElementById("cfg-pix-key").value.trim();
+      appState.settings.loyaltyGoal = Number(document.getElementById("cfg-loyalty-goal").value) || 10;
+      renderAll();
+      await persistStateToCloud();
+      showToast("Configurações da loja salvas!", "success");
+    }
+
+    // INICIALIZAÇÃO
+    window.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      initCloudSyncAndLicense();
+    });
+  </script>
+</body>
+</html>
