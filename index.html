@@ -59,7 +59,7 @@
         </div>
         <h1 class="text-2xl font-extrabold tracking-tight">Período de Acesso Encerrado</h1>
         <p id="lock-reason-text" class="text-slate-400 text-sm">
-          Seu período de avaliação ou assinatura mensal expirou. Renove sua chave para continuar acessando seu pátio e clientes.
+          Seu período de avaliação ou assinatura mensal expirou. Pague via PIX para liberação instantânea ou insira sua chave.
         </p>
       </div>
 
@@ -71,19 +71,19 @@
             <i data-lucide="copy" class="w-4 h-4"></i>
           </button>
         </div>
-        <p class="text-[11px] text-slate-400">Envie este ID no WhatsApp para receber sua chave de 30 dias.</p>
+        <p class="text-[11px] text-slate-400">Necessário para vincular o pagamento automático.</p>
       </div>
 
-      <button type="button" onclick="requestKeyWhatsApp()" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition active:scale-[0.98]">
-        <i data-lucide="message-circle" class="w-5 h-5"></i>
-        Solicitar Chave de 30 Dias (R$ 15/mês)
+      <button type="button" onclick="openAutomaticPixCheckout()" class="w-full py-4 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition active:scale-[0.98]">
+        <i data-lucide="qr-code" class="w-5 h-5"></i>
+        Comprar 30 Dias via PIX (R$ 15,00) - Automático
       </button>
 
       <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 space-y-3">
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Já possui uma chave? Ative abaixo:</label>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Já possui uma chave manual?</label>
         <input type="text" id="lock-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-center font-mono text-base uppercase tracking-widest text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 select-auto" style="-webkit-user-select: text; user-select: text;" />
         <button type="button" onclick="activateLicenseFromInput('lock-key-input')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition active:scale-[0.98]">
-          Liberar Acesso Agora
+          Liberar com Chave
         </button>
       </div>
 
@@ -402,13 +402,13 @@
         </button>
       </div>
 
-      <button type="button" onclick="requestKeyWhatsApp()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
-        <i data-lucide="message-circle" class="w-4 h-4"></i>
-        Renovar / Comprar Chave (+30 Dias)
+      <button type="button" onclick="openAutomaticPixCheckout()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
+        <i data-lucide="qr-code" class="w-4 h-4"></i>
+        Renovar 30 Dias via PIX (Automático)
       </button>
 
       <div class="space-y-2 pt-1">
-        <label class="block text-xs font-bold text-slate-700">Inserir Nova Chave de Liberação:</label>
+        <label class="block text-xs font-bold text-slate-700">Inserir Chave Manual:</label>
         <div class="flex gap-2">
           <input type="text" id="modal-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate flex-1 border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase select-auto" style="-webkit-user-select: text; user-select: text;" />
           <button type="button" onclick="activateLicenseFromInput('modal-key-input')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm">
@@ -577,6 +577,18 @@
       type: "trial",
       revoked: false
     };
+
+    // Link do Mercado Pago integrado com o ID do aparelho do cliente
+    function openAutomaticPixCheckout() {
+      const deviceId = getDeviceId();
+      const checkoutBaseUrl = "https://mpago.la/1LAsxeD"; 
+      const finalUrl = `${checkoutBaseUrl}?external_reference=${deviceId}`;
+      
+      showToast("Redirecionando para pagamento PIX seguro...", "success");
+      setTimeout(() => {
+        window.open(finalUrl, "_blank");
+      }, 800);
+    }
 
     function copyTextToClipboard(text, successMsg = "Copiado com sucesso!") {
       if (!text) return;
@@ -840,9 +852,9 @@
         mainApp.classList.add("hidden");
         const reasonEl = document.getElementById("lock-reason-text");
         if (isRevoked) {
-          reasonEl.textContent = "Esta assinatura foi encerrada ou revogada no sistema. Solicite uma nova chave para reativar.";
+          reasonEl.textContent = "Esta assinatura foi encerrada ou revogada no sistema. Realize um novo pagamento PIX para reativar.";
         } else {
-          reasonEl.textContent = "Seu período de avaliação ou assinatura mensal expirou. Renove sua chave para continuar.";
+          reasonEl.textContent = "Seu período de avaliação ou assinatura mensal expirou. Pague via PIX para liberar na hora.";
         }
         return;
       }
@@ -929,12 +941,6 @@
       evaluateLicenseUI();
       closeModal("modal-license");
       showToast("Licença de 30 dias ativada com sucesso!", "success");
-    }
-
-    function requestKeyWhatsApp() {
-      const id = getDeviceId();
-      const text = encodeURIComponent(`Olá! Gostaria de ativar minha assinatura mensal (R$ 15,00) do Lava Rápido Pro.\n\nMeu ID do dispositivo é: *${id}*`);
-      window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${text}`, "_blank");
     }
 
     let secretTapCount = 0;
