@@ -272,7 +272,7 @@
     </nav>
   </div>
 
-  <!-- MODAL: NOVA ORDEM DE SERVIÇO -->
+  <!-- MODAL: NOVA OS -->
   <div id="modal-new-order" class="hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between">
@@ -373,7 +373,7 @@
     </div>
   </div>
 
-  <!-- MODAL: LICENÇA DO USUÁRIO -->
+  <!-- MODAL: LICENÇA -->
   <div id="modal-license" class="hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4">
       <div class="flex items-center justify-between">
@@ -438,7 +438,6 @@
         </button>
       </div>
 
-      <!-- Tela 1: Login Admin -->
       <div id="admin-login-view" class="space-y-3 py-2">
         <label class="block text-xs font-semibold text-slate-300">Digite a Senha Mestra:</label>
         <input type="password" id="admin-pass-input" placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 select-auto" style="-webkit-user-select: text; user-select: text;" />
@@ -447,7 +446,6 @@
         </button>
       </div>
 
-      <!-- Tela 2: Gerenciador do Admin -->
       <div id="admin-dashboard-view" class="hidden space-y-4">
         
         <div class="grid grid-cols-2 gap-2 bg-slate-800 p-1 rounded-xl">
@@ -780,4 +778,821 @@
     function resetLocalToRevokedState() {
       appState = JSON.parse(JSON.stringify(defaultAppData));
       licenseState = {
-        expiresAt: Da
+        expiresAt: Date.now() - 1000,
+        type: "revoked",
+        revoked: true
+      };
+      localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+      localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+    }
+
+    function ensureTrialIfNewLocal() {
+      if (!licenseState || !licenseState.expiresAt) {
+        licenseState = {
+          expiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
+          type: "trial",
+          revoked: false
+        };
+        localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+      }
+    }
+
+    function setCloudStatus(online) {
+      const dot = document.getElementById("cloud-status-dot");
+      const text = document.getElementById("cloud-status-text");
+      if (online) {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+        text.textContent = "Nuvem Sincronizada";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-amber-500";
+        text.textContent = "Modo Offline";
+      }
+    }
+
+    async function persistStateToCloud() {
+      localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
+      localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+
+      if (!db || isRemoteSyncing) return;
+      const deviceId = getDeviceId();
+      try {
+        await db.collection("stores").doc(deviceId).set({
+          deviceId: deviceId,
+          appData: appState,
+          license: licenseState,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.error("Erro ao salvar no Firestore:", e);
+      }
+    }
+
+    function evaluateLicenseUI() {
+      const now = Date.now();
+      const isRevoked = Boolean(licenseState.revoked);
+      const isValid = !isRevoked && licenseState.expiresAt && licenseState.expiresAt > now;
+
+      const lockScreen = document.getElementById("lock-screen");
+      const mainApp = document.getElementById("main-app");
+
+      if (!isValid) {
+        lockScreen.classList.remove("hidden");
+        mainApp.classList.add("hidden");
+        const reasonEl = document.getElementById("lock-reason-text");
+        if (isRevoked) {
+          reasonEl.textContent = "Esta assinatura foi encerrada ou revogada no sistema. Solicite uma nova chave para reativar.";
+        } else {
+          reasonEl.textContent = "Seu período de avaliação ou assinatura mensal expirou. Renove sua chave para continuar.";
+        }
+        return;
+      }
+
+      lockScreen.classList.add("hidden");
+      mainApp.classList.remove("hidden");
+
+      const diffMs = licenseState.expiresAt - now;
+      const daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      const expDate = new Date(licenseState.expiresAt).toLocaleDateString("pt-BR");
+
+      const badge = document.getElementById("license-badge");
+      const badgeText = document.getElementById("license-badge-text");
+
+      if (licenseState.type === "pro") {
+        badge.className = "px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 hover:bg-emerald-200 transition";
+        badgeText.textContent = `Pro: ${daysLeft}d`;
+        document.getElementById("modal-lic-status").textContent = "Assinatura Mensal Ativa";
+        document.getElementById("modal-lic-days-pill").className = "px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-sm";
+      } else {
+        badge.className = "px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 hover:bg-amber-200 transition";
+        badgeText.textContent = `Teste: ${daysLeft}d`;
+        document.getElementById("modal-lic-status").textContent = "Período de Avaliação (3 Dias)";
+        document.getElementById("modal-lic-days-pill").className = "px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 font-extrabold text-sm";
+      }
+
+      document.getElementById("modal-lic-expiry").textContent = `Válido até ${expDate} (${daysLeft} dia(s) restante(s))`;
+      document.getElementById("modal-lic-days-pill").textContent = `${daysLeft}d`;
+    }
+
+    async function activateLicenseFromInput(inputId) {
+      const inputEl = document.getElementById(inputId);
+      const cleanKey = normalizeCodeString(inputEl ? inputEl.value : "");
+      const deviceId = getDeviceId();
+
+      if (!/^LAVA30-[A-Z0-9]{4}-[A-Z0-9]{6}$/.test(cleanKey)) {
+        showToast("Formato de chave inválido. Use LAVA30-XXXX-XXXXXX.", "error");
+        return;
+      }
+
+      const parts = cleanKey.split("-");
+      const salt = parts[1];
+      const signature = parts[2];
+      const expectedSig = computeLicenseHash(deviceId, salt);
+
+      if (signature !== expectedSig) {
+        showToast("Chave inválida para o ID deste aparelho.", "error");
+        return;
+      }
+
+      if (db) {
+        try {
+          const licRef = db.collection("licenses").doc(cleanKey);
+          const licSnap = await licRef.get();
+          if (licSnap.exists && licSnap.data().used === true) {
+            showToast("Esta chave já foi utilizada anteriormente.", "error");
+            return;
+          }
+          await licRef.set({
+            key: cleanKey,
+            deviceId: deviceId,
+            used: true,
+            usedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Aviso ao validar chave no Firestore:", e);
+        }
+      }
+
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const baseTime = (!licenseState.revoked && licenseState.expiresAt && licenseState.expiresAt > Date.now())
+        ? licenseState.expiresAt
+        : Date.now();
+
+      licenseState = {
+        expiresAt: baseTime + thirtyDaysMs,
+        type: "pro",
+        revoked: false,
+        lastKey: cleanKey
+      };
+
+      if (inputEl) inputEl.value = "";
+      await persistStateToCloud();
+      evaluateLicenseUI();
+      closeModal("modal-license");
+      showToast("Licença de 30 dias ativada com sucesso!", "success");
+    }
+
+    function requestKeyWhatsApp() {
+      const id = getDeviceId();
+      const text = encodeURIComponent(`Olá! Gostaria de ativar minha assinatura mensal (R$ 15,00) do Lava Rápido Pro.\n\nMeu ID do dispositivo é: *${id}*`);
+      window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${text}`, "_blank");
+    }
+
+    let secretTapCount = 0;
+    let secretTapTimer = null;
+
+    function handleSecretTap() {
+      secretTapCount++;
+      clearTimeout(secretTapTimer);
+      secretTapTimer = setTimeout(() => { secretTapCount = 0; }, 1500);
+
+      if (secretTapCount >= 5) {
+        secretTapCount = 0;
+        openAdminPanel();
+      }
+    }
+
+    function openAdminPanel() {
+      document.getElementById("admin-pass-input").value = "";
+      document.getElementById("admin-login-view").classList.remove("hidden");
+      document.getElementById("admin-dashboard-view").classList.add("hidden");
+      document.getElementById("modal-admin").classList.remove("hidden");
+    }
+
+    function closeAdminPanel() {
+      document.getElementById("modal-admin").classList.add("hidden");
+    }
+
+    function getAdminPassword() {
+      return localStorage.getItem(STORAGE_KEYS.ADMIN_PASS) || "An#!123Pe";
+    }
+
+    function verifyAdminLogin() {
+      const typed = document.getElementById("admin-pass-input").value.trim();
+      if (typed === getAdminPassword()) {
+        document.getElementById("admin-login-view").classList.add("hidden");
+        document.getElementById("admin-dashboard-view").classList.remove("hidden");
+        switchAdminSubtab("keys");
+        loadAdminKeysFromCloud();
+      } else {
+        showToast("Senha mestra incorreta.", "error");
+      }
+    }
+
+    function switchAdminSubtab(tab) {
+      const btnKeys = document.getElementById("admin-tab-keys");
+      const btnPass = document.getElementById("admin-tab-password");
+      const subKeys = document.getElementById("admin-sub-keys");
+      const subPass = document.getElementById("admin-sub-password");
+
+      if (tab === "keys") {
+        btnKeys.className = "py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950";
+        btnPass.className = "py-1.5 rounded-lg text-xs font-bold text-slate-300";
+        subKeys.classList.remove("hidden");
+        subPass.classList.add("hidden");
+      } else {
+        btnPass.className = "py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950";
+        btnKeys.className = "py-1.5 rounded-lg text-xs font-bold text-slate-300";
+        subPass.classList.remove("hidden");
+        subKeys.classList.add("hidden");
+      }
+    }
+
+    function fillOwnDeviceId() {
+      document.getElementById("admin-target-device").value = getDeviceId();
+    }
+
+    async function adminGenerateKey() {
+      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
+      if (!/^CEL-[A-Z0-9]{6}$/.test(targetId)) {
+        showToast("Informe um ID válido no formato CEL-XXXXXX.", "error");
+        return;
+      }
+
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let salt = "";
+      for (let i = 0; i < 4; i++) {
+        salt += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      const signature = computeLicenseHash(targetId, salt);
+      const fullKey = `LAVA30-${salt}-${signature}`;
+      lastGeneratedKey = fullKey;
+
+      document.getElementById("admin-generated-code").textContent = fullKey;
+      document.getElementById("admin-generated-box").classList.remove("hidden");
+
+      if (db) {
+        try {
+          await db.collection("licenses").doc(fullKey).set({
+            key: fullKey,
+            deviceId: targetId,
+            used: false,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (e) {
+          console.warn("Erro ao registrar chave na nuvem:", e);
+        }
+      }
+
+      loadAdminKeysFromCloud();
+      showToast("Chave gerada com sucesso!", "success");
+    }
+
+    async function adminRenewDirectly() {
+      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
+      if (!/^CEL-[A-Z0-9]{6}$/.test(targetId)) {
+        showToast("Informe um ID válido no formato CEL-XXXXXX.", "error");
+        return;
+      }
+
+      if (!db) {
+        showToast("Firebase não conectado.", "error");
+        return;
+      }
+
+      try {
+        const storeRef = db.collection("stores").doc(targetId);
+        const snap = await storeRef.get();
+        let currentExpiry = Date.now();
+
+        if (snap.exists && snap.data().license && snap.data().license.expiresAt > Date.now()) {
+          currentExpiry = snap.data().license.expiresAt;
+        }
+
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const newExpiry = currentExpiry + thirtyDaysMs;
+
+        const updatedLic = {
+          expiresAt: newExpiry,
+          type: "pro",
+          revoked: false
+        };
+
+        await storeRef.set({
+          license: updatedLic,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        showToast(`Dispositivo ${targetId} renovado por +30 dias na nuvem!`, "success");
+      } catch (e) {
+        console.error("Erro ao renovar:", e);
+        showToast("Erro ao renovar na nuvem.", "error");
+      }
+    }
+
+    async function loadAdminKeysFromCloud() {
+      const container = document.getElementById("admin-keys-history");
+      if (!db) {
+        container.innerHTML = `<p class="text-xs text-slate-500">Firebase offline.</p>`;
+        return;
+      }
+
+      try {
+        const snap = await db.collection("licenses").orderBy("createdAt", "desc").limit(20).get();
+        if (snap.empty) {
+          container.innerHTML = `<p class="text-xs text-slate-500">Nenhuma chave gerada.</p>`;
+          return;
+        }
+
+        container.innerHTML = snap.docs.map(doc => {
+          const d = doc.data();
+          return `
+            <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+              <div>
+                <p class="notranslate font-mono font-bold text-amber-400">${d.key}</p>
+                <p class="notranslate text-[10px] text-slate-400">${d.deviceId} • ${d.used ? '🔴 Usada' : '🟢 Disponível'}</p>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="copyTextToClipboard('${d.key}', 'Chave copiada!')" class="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200" title="Copiar">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                </button>
+                <button type="button" onclick="deleteAdminKey('${d.key}', '${d.deviceId || ''}')" class="p-1.5 bg-rose-950 hover:bg-rose-900 rounded-lg text-rose-300" title="Excluir Chave e Revogar Acesso">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join("");
+        lucide.createIcons();
+      } catch (e) {
+        console.error("Erro ao carregar chaves:", e);
+      }
+    }
+
+    async function deleteAdminKey(keyStr, targetDeviceId) {
+      if (!confirm(`Deseja excluir a chave ${keyStr} e REVOGAR o acesso do dispositivo ${targetDeviceId || 'associado'} imediatamente?`)) return;
+      
+      if (db) {
+        try {
+          await db.collection("licenses").doc(keyStr).delete();
+
+          if (targetDeviceId && /^CEL-[A-Z0-9]{6}$/.test(targetDeviceId)) {
+            await db.collection("stores").doc(targetDeviceId).set({
+              license: {
+                expiresAt: Date.now() - 1000,
+                type: "revoked",
+                revoked: true
+              },
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+
+          showToast("Chave excluída e acesso revogado com sucesso!", "success");
+          loadAdminKeysFromCloud();
+        } catch (e) {
+          console.error("Erro ao excluir chave:", e);
+          showToast("Erro ao excluir chave na nuvem.", "error");
+        }
+      }
+    }
+
+    function sendGeneratedKeyWhatsApp() {
+      if (!lastGeneratedKey) return;
+      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
+      const msg = encodeURIComponent(`✅ *Acesso Liberado - Lava Rápido Pro!*\n\n📱 *ID:* ${targetId}\n🔑 *Chave (+30 Dias):*\n*${lastGeneratedKey}*\n\nBasta colar a chave no aplicativo para liberar seu acesso. Obrigado!`);
+      window.open(`https://wa.me/?text=${msg}`, "_blank");
+    }
+
+    function changeAdminPassword() {
+      const p1 = document.getElementById("admin-new-pass").value.trim();
+      const p2 = document.getElementById("admin-confirm-pass").value.trim();
+      if (p1.length < 4) {
+        showToast("A senha deve ter pelo menos 4 caracteres.", "error");
+        return;
+      }
+      if (p1 !== p2) {
+        showToast("As senhas não coincidem.", "error");
+        return;
+      }
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PASS, p1);
+      document.getElementById("admin-new-pass").value = "";
+      document.getElementById("admin-confirm-pass").value = "";
+      showToast("Senha mestra atualizada!", "success");
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll("main > section").forEach(sec => sec.classList.add("hidden"));
+      document.getElementById(`tab-${tabName}`).classList.remove("hidden");
+
+      document.querySelectorAll(".nav-btn").forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+          btn.classList.remove("text-slate-400");
+          btn.classList.add("text-blue-600");
+        } else {
+          btn.classList.remove("text-blue-600");
+          btn.classList.add("text-slate-400");
+        }
+      });
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+    function openLicenseModal() {
+      evaluateLicenseUI();
+      document.getElementById("modal-license").classList.remove("hidden");
+    }
+
+    function renderAll() {
+      document.getElementById("header-shop-name").textContent = appState.settings.shopName || "Auto Estética Pro";
+      document.getElementById("cfg-shop-name").value = appState.settings.shopName || "";
+      document.getElementById("cfg-pix-key").value = appState.settings.pixKey || "";
+      document.getElementById("cfg-loyalty-goal").value = appState.settings.loyaltyGoal || 10;
+
+      document.getElementById("tpl-checkin").value = appState.templates.checkin || "";
+      document.getElementById("tpl-ready").value = appState.templates.ready || "";
+      document.getElementById("tpl-pix").value = appState.templates.pix || "";
+
+      renderOrders();
+      renderServices();
+      renderClients();
+      lucide.createIcons();
+    }
+
+    function setOrderFilter(filter) {
+      currentOrderFilter = filter;
+      document.querySelectorAll(".filter-btn").forEach(btn => {
+        if (btn.dataset.filter === filter) {
+          btn.className = "filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white shrink-0";
+        } else {
+          btn.className = "filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0";
+        }
+      });
+      renderOrders();
+    }
+
+    function renderOrders() {
+      const todayStr = new Date().toLocaleDateString("pt-BR");
+      const todayOrders = appState.orders.filter(o => o.date === todayStr);
+
+      const activeCount = appState.orders.filter(o => o.status === "washing").length;
+      const doneCount = todayOrders.filter(o => o.status === "ready" || o.status === "delivered").length;
+      const revenue = todayOrders
+        .filter(o => o.paid)
+        .reduce((acc, o) => acc + Number(o.price || 0), 0);
+
+      document.getElementById("kpi-active").textContent = activeCount;
+      document.getElementById("kpi-done").textContent = doneCount;
+      document.getElementById("kpi-revenue").textContent = `R$ ${revenue.toFixed(0)}`;
+
+      const filtered = appState.orders.filter(o => {
+        if (currentOrderFilter === "all") return true;
+        return o.status === currentOrderFilter;
+      });
+
+      const listEl = document.getElementById("orders-list");
+      if (!filtered.length) {
+        listEl.innerHTML = `
+          <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-2">
+            <p class="text-sm font-bold text-slate-600">Nenhum veículo nesta fila</p>
+            <p class="text-xs text-slate-400">Toque em "+ Nova OS" para registrar uma entrada.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const statusMeta = {
+        washing: { label: "Lavando / Fila", badge: "bg-blue-100 text-blue-700" },
+        ready: { label: "Pronto", badge: "bg-amber-100 text-amber-800" },
+        delivered: { label: "Entregue", badge: "bg-emerald-100 text-emerald-700" }
+      };
+
+      listEl.innerHTML = filtered.map(order => {
+        const st = statusMeta[order.status] || statusMeta.washing;
+        return `
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="notranslate px-2 py-0.5 bg-slate-900 text-white font-mono text-xs font-extrabold rounded-md">${order.plate}</span>
+                  <h4 class="font-extrabold text-slate-900 text-sm">${order.vehicle}</h4>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">${order.clientName} • <span class="font-semibold text-slate-700">${order.serviceName}</span></p>
+              </div>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold ${st.badge}">${st.label}</span>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-slate-900 text-sm">R$ ${Number(order.price).toFixed(2)}</span>
+                <button type="button" onclick="toggleOrderPaid('${order.id}')" class="px-2 py-0.5 rounded-md text-[11px] font-bold ${order.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                  ${order.paid ? 'Pago' : 'Pendente'}
+                </button>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="sendOrderWhatsApp('${order.id}', 'ready')" class="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100" title="Avisar Pronto">
+                  <i data-lucide="message-circle" class="w-4 h-4"></i>
+                </button>
+                <button type="button" onclick="sendOrderWhatsApp('${order.id}', 'pix')" class="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="Enviar PIX">
+                  <i data-lucide="qr-code" class="w-4 h-4"></i>
+                </button>
+                ${order.status === 'washing' ? `
+                  <button type="button" onclick="advanceOrderStatus('${order.id}', 'ready')" class="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold">Pronto</button>
+                ` : ''}
+                ${order.status === 'ready' ? `
+                  <button type="button" onclick="advanceOrderStatus('${order.id}', 'delivered')" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">Entregar</button>
+                ` : ''}
+                <button type="button" onclick="deleteOrder('${order.id}')" class="p-2 rounded-xl text-slate-400 hover:text-rose-600" title="Excluir">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+      lucide.createIcons();
+    }
+
+    function openNewOrderModal() {
+      const sel = document.getElementById("os-service");
+      sel.innerHTML = appState.services.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+      document.getElementById("os-plate").value = "";
+      document.getElementById("os-vehicle").value = "";
+      document.getElementById("os-client").value = "";
+      document.getElementById("os-phone").value = "";
+      updateOrderPricePreview();
+      document.getElementById("modal-new-order").classList.remove("hidden");
+    }
+
+    function autoFillByPlate() {
+      const plate = normalizeCodeString(document.getElementById("os-plate").value);
+      const existing = appState.clients.find(c => normalizeCodeString(c.plate) === plate);
+      if (existing) {
+        document.getElementById("os-vehicle").value = existing.vehicle || "";
+        document.getElementById("os-client").value = existing.name || "";
+        document.getElementById("os-phone").value = existing.phone || "";
+      }
+    }
+
+    function updateOrderPricePreview() {
+      const size = document.getElementById("os-size").value;
+      const srvId = document.getElementById("os-service").value;
+      const srv = appState.services.find(s => s.id === srvId);
+      if (srv) {
+        document.getElementById("os-price").value = srv[size] || 0;
+      }
+    }
+
+    async function createOrder() {
+      const plate = normalizeCodeString(document.getElementById("os-plate").value);
+      const vehicle = document.getElementById("os-vehicle").value.trim();
+      const clientName = document.getElementById("os-client").value.trim();
+      const phone = document.getElementById("os-phone").value.trim();
+      const size = document.getElementById("os-size").value;
+      const srvId = document.getElementById("os-service").value;
+      const price = parseFloat(document.getElementById("os-price").value) || 0;
+
+      if (!plate || !vehicle || !clientName) {
+        showToast("Preencha Placa, Veículo e Nome do Cliente.", "error");
+        return;
+      }
+
+      const srv = appState.services.find(s => s.id === srvId) || { name: "Lavagem" };
+
+      const newOrder = {
+        id: "OS-" + Date.now(),
+        plate,
+        vehicle,
+        clientName,
+        phone,
+        size,
+        serviceName: srv.name,
+        price,
+        status: "washing",
+        paid: false,
+        date: new Date().toLocaleDateString("pt-BR")
+      };
+
+      appState.orders.unshift(newOrder);
+
+      let client = appState.clients.find(c => normalizeCodeString(c.plate) === plate);
+      if (client) {
+        client.name = clientName;
+        client.vehicle = vehicle;
+        if (phone) client.phone = phone;
+        client.washes = (client.washes || 0) + 1;
+      } else {
+        appState.clients.unshift({
+          id: "CLI-" + Date.now(),
+          name: clientName,
+          phone,
+          plate,
+          vehicle,
+          washes: 1
+        });
+      }
+
+      closeModal("modal-new-order");
+      renderAll();
+      await persistStateToCloud();
+      showToast("Veículo registrado no pátio!", "success");
+
+      if (phone) {
+        sendOrderWhatsApp(newOrder.id, "checkin");
+      }
+    }
+
+    async function advanceOrderStatus(id, nextStatus) {
+      const order = appState.orders.find(o => o.id === id);
+      if (!order) return;
+      order.status = nextStatus;
+      if (nextStatus === "delivered") order.paid = true;
+      renderAll();
+      await persistStateToCloud();
+      showToast("Status atualizado!", "success");
+    }
+
+    async function toggleOrderPaid(id) {
+      const order = appState.orders.find(o => o.id === id);
+      if (!order) return;
+      order.paid = !order.paid;
+      renderAll();
+      await persistStateToCloud();
+    }
+
+    async function deleteOrder(id) {
+      appState.orders = appState.orders.filter(o => o.id !== id);
+      renderAll();
+      await persistStateToCloud();
+      showToast("Ordem de serviço removida.");
+    }
+
+    function sendOrderWhatsApp(orderId, tplType) {
+      const order = appState.orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const rawPhone = (order.phone || "").replace(/\D/g, "");
+      if (!rawPhone) {
+        showToast("Este cliente não tem WhatsApp cadastrado.", "error");
+        return;
+      }
+
+      const phoneWithDDI = rawPhone.startsWith("55") ? rawPhone : `55${rawPhone}`;
+      let msg = appState.templates[tplType] || "";
+      msg = msg
+        .replace(/{cliente}/g, order.clientName)
+        .replace(/{veiculo}/g, order.vehicle)
+        .replace(/{placa}/g, order.plate)
+        .replace(/{servico}/g, order.serviceName)
+        .replace(/{valor}/g, `R$ ${Number(order.price).toFixed(2)}`)
+        .replace(/{pix}/g, appState.settings.pixKey || "(Chave PIX não configurada)");
+
+      window.open(`https://wa.me/${phoneWithDDI}?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+
+    function renderServices() {
+      const el = document.getElementById("services-list");
+      el.innerHTML = appState.services.map(s => `
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="font-extrabold text-slate-900 text-sm">${s.name}</h4>
+            <div class="flex gap-1.5">
+              <button type="button" onclick="openServiceModal('${s.id}')" class="p-1.5 rounded-lg bg-slate-100 text-slate-600">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button type="button" onclick="deleteService('${s.id}')" class="p-1.5 rounded-lg bg-rose-50 text-rose-600">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5 text-center">
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">HATCH</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.hatch}</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">SEDAN</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.sedan}</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">SUV</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.suv}</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="block text-[10px] text-slate-400 font-bold">MOTO</span>
+              <span class="text-xs font-extrabold text-slate-800">R$ ${s.moto}</span>
+            </div>
+          </div>
+        </div>
+      `).join("");
+      lucide.createIcons();
+    }
+
+    function openServiceModal(id = null) {
+      if (id) {
+        const s = appState.services.find(item => item.id === id);
+        document.getElementById("service-modal-title").textContent = "Editar Serviço";
+        document.getElementById("srv-id").value = s.id;
+        document.getElementById("srv-name").value = s.name;
+        document.getElementById("srv-hatch").value = s.hatch;
+        document.getElementById("srv-sedan").value = s.sedan;
+        document.getElementById("srv-suv").value = s.suv;
+        document.getElementById("srv-moto").value = s.moto;
+      } else {
+        document.getElementById("service-modal-title").textContent = "Novo Serviço";
+        document.getElementById("srv-id").value = "";
+        document.getElementById("srv-name").value = "";
+        document.getElementById("srv-hatch").value = "";
+        document.getElementById("srv-sedan").value = "";
+        document.getElementById("srv-suv").value = "";
+        document.getElementById("srv-moto").value = "";
+      }
+      document.getElementById("modal-service").classList.remove("hidden");
+    }
+
+    async function saveService() {
+      const id = document.getElementById("srv-id").value;
+      const name = document.getElementById("srv-name").value.trim();
+      if (!name) {
+        showToast("Digite o nome do serviço.", "error");
+        return;
+      }
+      const payload = {
+        id: id || "SRV-" + Date.now(),
+        name,
+        hatch: Number(document.getElementById("srv-hatch").value) || 0,
+        sedan: Number(document.getElementById("srv-sedan").value) || 0,
+        suv: Number(document.getElementById("srv-suv").value) || 0,
+        moto: Number(document.getElementById("srv-moto").value) || 0
+      };
+
+      if (id) {
+        const idx = appState.services.findIndex(s => s.id === id);
+        if (idx > -1) appState.services[idx] = payload;
+      } else {
+        appState.services.push(payload);
+      }
+
+      closeModal("modal-service");
+      renderServices();
+      await persistStateToCloud();
+      showToast("Serviço salvo!", "success");
+    }
+
+    async function deleteService(id) {
+      appState.services = appState.services.filter(s => s.id !== id);
+      renderServices();
+      await persistStateToCloud();
+    }
+
+    function renderClients() {
+      const q = (document.getElementById("client-search").value || "").toLowerCase();
+      const goal = Number(appState.settings.loyaltyGoal) || 10;
+      const filtered = appState.clients.filter(c =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.plate || "").toLowerCase().includes(q) ||
+        (c.phone || "").includes(q)
+      );
+
+      const el = document.getElementById("clients-list");
+      if (!filtered.length) {
+        el.innerHTML = `<p class="text-center text-xs text-slate-400 py-6">Nenhum cliente encontrado.</p>`;
+        return;
+      }
+
+      el.innerHTML = filtered.map(c => {
+        const washes = c.washes || 0;
+        const progress = washes % goal;
+        const earned = washes > 0 && progress === 0;
+        return `
+          <div class="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between">
+            <div>
+              <h4 class="font-extrabold text-slate-900 text-sm">${c.name}</h4>
+              <p class="text-xs text-slate-500"><span class="notranslate font-mono font-bold text-slate-700">${c.plate}</span> • ${c.vehicle || ''}</p>
+            </div>
+            <div class="text-right">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold ${earned ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-50 text-blue-600'}">
+                ${earned ? '🎁 1 Grátis!' : `${progress}/${goal} lavagens`}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function saveTemplates() {
+      appState.templates.checkin = document.getElementById("tpl-checkin").value;
+      appState.templates.ready = document.getElementById("tpl-ready").value;
+      appState.templates.pix = document.getElementById("tpl-pix").value;
+      await persistStateToCloud();
+      showToast("Modelos de WhatsApp salvos!", "success");
+    }
+
+    async function saveSettings() {
+      appState.settings.shopName = document.getElementById("cfg-shop-name").value.trim() || "Auto Estética Pro";
+      appState.settings.pixKey = document.getElementById("cfg-pix-key").value.trim();
+      appState.settings.loyaltyGoal = Number(document.getElementById("cfg-loyalty-goal").value) || 10;
+      renderAll();
+      await persistStateToCloud();
+      showToast("Configurações da loja salvas!", "success");
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      initCloudSyncAndLicense();
+    });
+  </script>
+</body>
+</html>
