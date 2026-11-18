@@ -58,27 +58,24 @@
           <i data-lucide="lock" class="w-8 h-8 text-white"></i>
         </div>
         <h1 class="text-2xl font-extrabold tracking-tight">Período de Acesso Encerrado</h1>
-        <p id="lock-reason-text" class="text-slate-400 text-sm">
-          Seu período de avaliação ou assinatura mensal expirou. Envie seu ID/WhatsApp para receber sua chave de liberação ou insira uma chave manual.
+        <p class="text-slate-400 text-sm">
+          Informe seu WhatsApp cadastrado e a chave de liberação (permite até 2 dispositivos).
         </p>
       </div>
 
-      <div onclick="handleSecretTap()" class="bg-slate-800/90 border border-slate-700 rounded-2xl p-4 text-center space-y-2 cursor-pointer">
-        <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">WhatsApp / ID deste Aparelho</span>
-        <div class="flex items-center justify-center gap-2">
-          <code id="lock-device-id" class="notranslate text-xl font-mono font-bold text-amber-400 tracking-wider">WHATS-0000000000</code>
-          <button type="button" onclick="event.stopPropagation(); copyTextToClipboard(document.getElementById('lock-device-id').textContent, 'ID copiado!')" class="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 transition" title="Copiar ID">
-            <i data-lucide="copy" class="w-4 h-4"></i>
-          </button>
+      <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Seu WhatsApp (DDD + Número)</label>
+          <input type="tel" id="lock-phone-input" placeholder="19999999999" class="notranslate w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-center font-mono text-base text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 select-auto" style="-webkit-user-select: text; user-select: text;" />
         </div>
-        <p class="text-[11px] text-slate-400">Copie e envie este ID para gerar sua chave de 30 dias.</p>
-      </div>
 
-      <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 space-y-3">
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300">Inserir Chave de Liberação:</label>
-        <input type="text" id="lock-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-center font-mono text-base uppercase tracking-widest text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 select-auto" style="-webkit-user-select: text; user-select: text;" />
-        <button type="button" onclick="activateLicenseFromInput('lock-key-input')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition active:scale-[0.98]">
-          Liberar com Chave
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Chave de Liberação</label>
+          <input type="text" id="lock-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-center font-mono text-base uppercase tracking-widest text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 select-auto" style="-webkit-user-select: text; user-select: text;" />
+        </div>
+
+        <button type="button" onclick="activateLicenseWithPhoneAndKey('lock-phone-input', 'lock-key-input')" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition active:scale-[0.98]">
+          Ativar Acesso
         </button>
       </div>
 
@@ -397,19 +394,14 @@
           <span class="text-[11px] font-bold uppercase text-slate-400">WhatsApp / ID Vinculado</span>
           <p id="modal-lic-device" class="notranslate font-mono font-extrabold text-slate-900 text-base">WHATS-0000000000</p>
         </div>
-        <button type="button" onclick="copyTextToClipboard(document.getElementById('modal-lic-device').textContent, 'ID copiado!')" class="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100">
-          Copiar ID
-        </button>
       </div>
 
-      <div class="space-y-2 pt-1">
-        <label class="block text-xs font-bold text-slate-700">Inserir Chave Manual:</label>
-        <div class="flex gap-2">
-          <input type="text" id="modal-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate flex-1 border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase select-auto" style="-webkit-user-select: text; user-select: text;" />
-          <button type="button" onclick="activateLicenseFromInput('modal-key-input')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm">
-            Ativar
-          </button>
-        </div>
+      <div class="space-y-2.5 pt-1">
+        <label class="block text-xs font-bold text-slate-700">Ativar Nova Chave (Permite até 2 aparelhos):</label>
+        <input type="text" id="modal-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate w-full border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase select-auto" style="-webkit-user-select: text; user-select: text;" />
+        <button type="button" onclick="activateLicenseModalKey()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm">
+          Ativar Chave
+        </button>
       </div>
     </div>
   </div>
@@ -425,7 +417,7 @@
           </div>
           <div>
             <h3 class="font-extrabold text-sm">Painel Mestre • Licenças</h3>
-            <p class="text-[11px] text-slate-400">Gerenciador de Chaves & Clientes</p>
+            <p class="text-[11px] text-slate-400">Gerador de Chaves (Até 2 Usos)</p>
           </div>
         </div>
         <button type="button" onclick="closeAdminPanel()" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
@@ -444,32 +436,24 @@
       <div id="admin-dashboard-view" class="hidden space-y-4">
         
         <div class="grid grid-cols-2 gap-2 bg-slate-800 p-1 rounded-xl">
-          <button type="button" onclick="switchAdminSubtab('keys')" id="admin-tab-keys" class="py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950">Gerar / Chaves</button>
+          <button type="button" onclick="switchAdminSubtab('keys')" id="admin-tab-keys" class="py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950">Gerar Chave</button>
           <button type="button" onclick="switchAdminSubtab('password')" id="admin-tab-password" class="py-1.5 rounded-lg text-xs font-bold text-slate-300">Senha Admin</button>
         </div>
 
         <div id="admin-sub-keys" class="space-y-3">
           <div>
-            <div class="flex items-center justify-between mb-1">
-              <label class="text-xs font-semibold text-slate-300">WhatsApp / ID do Cliente:</label>
-              <button type="button" onclick="fillOwnDeviceId()" class="text-[11px] text-amber-400 hover:underline">Usar meu ID</button>
-            </div>
-            <input type="text" id="admin-target-device" placeholder="WHATS-19999999999" class="notranslate w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase text-white select-auto" style="-webkit-user-select: text; user-select: text;" />
+            <label class="block text-xs font-semibold text-slate-300 mb-1">WhatsApp do Cliente (DDD + Número):</label>
+            <input type="text" id="admin-target-phone" placeholder="19999999999" class="notranslate w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase text-white select-auto" style="-webkit-user-select: text; user-select: text;" />
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <button type="button" onclick="adminGenerateKey()" class="py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5">
-              <i data-lucide="sparkles" class="w-4 h-4"></i> Gerar Chave 30d
-            </button>
-            <button type="button" onclick="adminRenewDirectly()" class="py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5">
-              <i data-lucide="zap" class="w-4 h-4"></i> Renovar Direto
-            </button>
-          </div>
+          <button type="button" onclick="adminGenerateKey()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="sparkles" class="w-4 h-4"></i> Gerar Chave 30 Dias (2 Usos)
+          </button>
 
           <div id="admin-generated-box" class="hidden bg-slate-950 border border-emerald-500/40 rounded-2xl p-3.5 space-y-2.5">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] text-emerald-400 font-bold uppercase">Chave Gerada (+30 Dias):</span>
-              <span class="text-[10px] text-slate-400">Uso Único</span>
+              <span class="text-[11px] text-emerald-400 font-bold uppercase">Chave Gerada:</span>
+              <span class="text-[10px] text-slate-400">Até 2 Aparelhos</span>
             </div>
             <code id="admin-generated-code" class="notranslate block text-center font-mono text-lg font-extrabold text-amber-400 tracking-wider py-1">LAVA30-XXXX-XXXXXX</code>
             <div class="grid grid-cols-2 gap-2">
@@ -533,13 +517,11 @@
     }
 
     const SECRET_SALT = "LAVA_PRO_2026_SECURE_KEY";
-    const ADMIN_WHATSAPP = "5519989450061"; 
     const STORAGE_KEYS = {
       DEVICE_ID: "lrp_device_id",
       LICENSE: "lrp_license_data",
       DATA: "lrp_app_data",
-      ADMIN_PASS: "lrp_admin_pass",
-      KEY_HISTORY: "lrp_admin_keys"
+      ADMIN_PASS: "lrp_admin_pass"
     };
 
     let currentOrderFilter = "all";
@@ -623,34 +605,33 @@
       let phoneId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
       
       if (!phoneId || (!phoneId.startsWith("WHATS-") && !phoneId.startsWith("CEL-"))) {
-        let inputPhone = prompt("Informe o número do seu WhatsApp com DDD (ex: 19999999999) para sincronizar seus dados:");
+        let inputPhone = prompt("Informe o seu número de WhatsApp com DDD (ex: 19999999999):");
         if (inputPhone) {
           const cleanNumber = inputPhone.replace(/\D/g, "");
           if (cleanNumber.length >= 10) {
             phoneId = "WHATS-" + cleanNumber;
             localStorage.setItem(STORAGE_KEYS.DEVICE_ID, phoneId);
           } else {
-            alert("Número inválido. Um ID padrão será gerado.");
-            phoneId = "CEL-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-            localStorage.setItem(STORAGE_KEYS.DEVICE_ID, phoneId);
+            alert("Número inválido. Tente novamente.");
+            return getDeviceId();
           }
         } else {
-          phoneId = "CEL-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-          localStorage.setItem(STORAGE_KEYS.DEVICE_ID, phoneId);
+          alert("O número de telefone é obrigatório para acessar o aplicativo.");
+          return getDeviceId();
         }
       }
       return phoneId;
     }
 
     function resetWhatsAppId() {
-      if (confirm("Deseja alterar o WhatsApp vinculado a este aparelho? Seus dados serão associados ao novo número.")) {
+      if (confirm("Deseja alterar o WhatsApp vinculado a este aparelho?")) {
         localStorage.removeItem(STORAGE_KEYS.DEVICE_ID);
         location.reload();
       }
     }
 
-    function computeLicenseHash(deviceId, salt) {
-      const raw = `${normalizeCodeString(deviceId)}-${normalizeCodeString(salt)}-${SECRET_SALT}`;
+    function computeLicenseHash(phoneNum, salt) {
+      const raw = `${normalizeCodeString(phoneNum)}-${normalizeCodeString(salt)}-${SECRET_SALT}`;
       let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
       for (let i = 0; i < raw.length; i++) {
         const ch = raw.charCodeAt(i);
@@ -677,7 +658,6 @@
 
     async function initCloudSyncAndLicense() {
       const deviceId = getDeviceId();
-      document.getElementById("lock-device-id").textContent = deviceId;
       document.getElementById("settings-device-id").textContent = deviceId;
       document.getElementById("modal-lic-device").textContent = deviceId;
 
@@ -704,35 +684,22 @@
         const initialSnap = await storeRef.get();
 
         if (!initialSnap.exists) {
-          const hadLocalBefore = Boolean(savedLocalData || savedLocalLic);
+          const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+          licenseState = {
+            expiresAt: Date.now() + threeDaysMs,
+            type: "trial",
+            revoked: false
+          };
+          localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
+          localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
 
-          if (hadLocalBefore) {
-            resetLocalToRevokedState();
-            await storeRef.set({
-              deviceId: deviceId,
-              appData: defaultAppData,
-              license: licenseState,
-              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          } else {
-            const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-            licenseState = {
-              expiresAt: Date.now() + threeDaysMs,
-              type: "trial",
-              revoked: false
-            };
-            localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
-            localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
-
-            await storeRef.set({
-              deviceId: deviceId,
-              appData: appState,
-              license: licenseState,
-              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          }
+          await storeRef.set({
+            deviceId: deviceId,
+            appData: appState,
+            license: licenseState,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
         } else {
           const cloudDoc = initialSnap.data();
           if (cloudDoc.appData) {
@@ -746,33 +713,20 @@
         }
 
         storeRef.onSnapshot((docSnap) => {
-          if (!docSnap.exists) {
-            resetLocalToRevokedState();
-            evaluateLicenseUI();
-            renderAll();
-            showToast("Dados removidos pelo administrador. Acesso encerrado.", "error");
-            return;
-          }
-
+          if (!docSnap.exists) return;
           const data = docSnap.data();
           isRemoteSyncing = true;
-
           if (data.appData) {
             appState = { ...defaultAppData, ...data.appData };
             localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
           }
-
           if (data.license) {
             licenseState = data.license;
             localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
           }
-
           evaluateLicenseUI();
           renderAll();
           isRemoteSyncing = false;
-        }, (err) => {
-          console.warn("Erro no listener Firestore:", err);
-          setCloudStatus(false);
         });
 
         setCloudStatus(true);
@@ -784,17 +738,6 @@
 
       evaluateLicenseUI();
       renderAll();
-    }
-
-    function resetLocalToRevokedState() {
-      appState = JSON.parse(JSON.stringify(defaultAppData));
-      licenseState = {
-        expiresAt: Date.now() - 1000,
-        type: "revoked",
-        revoked: true
-      };
-      localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(appState));
-      localStorage.setItem(STORAGE_KEYS.LICENSE, JSON.stringify(licenseState));
     }
 
     function ensureTrialIfNewLocal() {
@@ -849,12 +792,6 @@
       if (!isValid) {
         lockScreen.classList.remove("hidden");
         mainApp.classList.add("hidden");
-        const reasonEl = document.getElementById("lock-reason-text");
-        if (isRevoked) {
-          reasonEl.textContent = "Esta assinatura foi encerrada ou revogada no sistema. Solicite uma nova chave para reativar.";
-        } else {
-          reasonEl.textContent = "Seu período de avaliação ou assinatura mensal expirou. Envie seu ID/WhatsApp para receber sua chave ou insira uma chave manual.";
-        }
         return;
       }
 
@@ -872,35 +809,39 @@
         badge.className = "px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 hover:bg-emerald-200 transition";
         badgeText.textContent = `Pro: ${daysLeft}d`;
         document.getElementById("modal-lic-status").textContent = "Assinatura Mensal Ativa";
-        document.getElementById("modal-lic-days-pill").className = "px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-sm";
       } else {
         badge.className = "px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1 hover:bg-amber-200 transition";
         badgeText.textContent = `Teste: ${daysLeft}d`;
         document.getElementById("modal-lic-status").textContent = "Período de Avaliação (3 Dias)";
-        document.getElementById("modal-lic-days-pill").className = "px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 font-extrabold text-sm";
       }
 
       document.getElementById("modal-lic-expiry").textContent = `Válido até ${expDate} (${daysLeft} dia(s) restante(s))`;
-      document.getElementById("modal-lic-days-pill").textContent = `${daysLeft}d`;
     }
 
-    async function activateLicenseFromInput(inputId) {
-      const inputEl = document.getElementById(inputId);
-      const cleanKey = normalizeCodeString(inputEl ? inputEl.value : "");
-      const deviceId = getDeviceId();
+    async function activateLicenseWithPhoneAndKey(phoneInputId, keyInputId) {
+      const phoneInput = document.getElementById(phoneInputId);
+      const keyInput = document.getElementById(keyInputId);
+      
+      const cleanPhone = (phoneInput ? phoneInput.value : "").replace(/\D/g, "");
+      const cleanKey = normalizeCodeString(keyInput ? keyInput.value : "");
+
+      if (cleanPhone.length < 10) {
+        showToast("Informe o WhatsApp completo com DDD.", "error");
+        return;
+      }
 
       if (!/^LAVA30-[A-Z0-9]{4}-[A-Z0-9]{6}$/.test(cleanKey)) {
-        showToast("Formato de chave inválido. Use LAVA30-XXXX-XXXXXX.", "error");
+        showToast("Formato de chave inválido.", "error");
         return;
       }
 
       const parts = cleanKey.split("-");
       const salt = parts[1];
       const signature = parts[2];
-      const expectedSig = computeLicenseHash(deviceId, salt);
+      const expectedSig = computeLicenseHash(cleanPhone, salt);
 
       if (signature !== expectedSig) {
-        showToast("Chave inválida para o ID deste aparelho.", "error");
+        showToast("Chave não confere com este número de telefone.", "error");
         return;
       }
 
@@ -908,18 +849,37 @@
         try {
           const licRef = db.collection("licenses").doc(cleanKey);
           const licSnap = await licRef.get();
-          if (licSnap.exists && licSnap.data().used === true) {
-            showToast("Esta chave já foi utilizada anteriormente.", "error");
+
+          let usedDevices = [];
+          let maxUses = 2;
+
+          if (licSnap.exists) {
+            const data = licSnap.data();
+            usedDevices = data.usedDevices || [];
+            if (data.phone && data.phone !== cleanPhone) {
+              showToast("Esta chave pertence a outro número de WhatsApp.", "error");
+              return;
+            }
+          }
+
+          const currentDevice = getDeviceId();
+          if (!usedDevices.includes(currentDevice) && usedDevices.length >= maxUses) {
+            showToast("Esta chave já atingiu o limite de 2 aparelhos utilizados.", "error");
             return;
           }
+
+          if (!usedDevices.includes(currentDevice)) {
+            usedDevices.push(currentDevice);
+          }
+
           await licRef.set({
             key: cleanKey,
-            deviceId: deviceId,
-            used: true,
-            usedAt: firebase.firestore.FieldValue.serverTimestamp()
+            phone: cleanPhone,
+            usedDevices: usedDevices,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, { merge: true });
         } catch (e) {
-          console.warn("Aviso ao validar chave no Firestore:", e);
+          console.warn("Erro ao verificar limite no Firestore:", e);
         }
       }
 
@@ -935,11 +895,25 @@
         lastKey: cleanKey
       };
 
-      if (inputEl) inputEl.value = "";
+      if (phoneInput) phoneInput.value = "";
+      if (keyInput) keyInput.value = "";
+
       await persistStateToCloud();
       evaluateLicenseUI();
       closeModal("modal-license");
-      showToast("Licença de 30 dias ativada com sucesso!", "success");
+      showToast("Acesso ativado com sucesso!", "success");
+    }
+
+    async function activateLicenseModalKey() {
+      const phoneNum = getDeviceId().replace("WHATS-", "");
+      // Cria temporariamente um input para reusar a validação
+      const tempInput = document.createElement("input");
+      tempInput.value = phoneNum;
+      tempInput.id = "temp-phone-val";
+      document.body.appendChild(tempInput);
+
+      await activateLicenseWithPhoneAndKey("temp-phone-val", "modal-key-input");
+      document.body.removeChild(tempInput);
     }
 
     let secretTapCount = 0;
@@ -1002,14 +976,10 @@
       }
     }
 
-    function fillOwnDeviceId() {
-      document.getElementById("admin-target-device").value = getDeviceId();
-    }
-
     async function adminGenerateKey() {
-      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
-      if (!targetId || targetId.length < 6) {
-        showToast("Informe um WhatsApp ou ID válido.", "error");
+      const targetPhone = document.getElementById("admin-target-phone").value.replace(/\D/g, "");
+      if (!targetPhone || targetPhone.length < 10) {
+        showToast("Informe o WhatsApp do cliente com DDD.", "error");
         return;
       }
 
@@ -1019,7 +989,7 @@
         salt += chars.charAt(Math.floor(Math.random() * chars.length));
       }
 
-      const signature = computeLicenseHash(targetId, salt);
+      const signature = computeLicenseHash(targetPhone, salt);
       const fullKey = `LAVA30-${salt}-${signature}`;
       lastGeneratedKey = fullKey;
 
@@ -1030,8 +1000,9 @@
         try {
           await db.collection("licenses").doc(fullKey).set({
             key: fullKey,
-            deviceId: targetId,
-            used: false,
+            phone: targetPhone,
+            maxUses: 2,
+            usedDevices: [],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
         } catch (e) {
@@ -1041,48 +1012,6 @@
 
       loadAdminKeysFromCloud();
       showToast("Chave gerada com sucesso!", "success");
-    }
-
-    async function adminRenewDirectly() {
-      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
-      if (!targetId || targetId.length < 6) {
-        showToast("Informe um WhatsApp ou ID válido.", "error");
-        return;
-      }
-
-      if (!db) {
-        showToast("Firebase não conectado.", "error");
-        return;
-      }
-
-      try {
-        const storeRef = db.collection("stores").doc(targetId);
-        const snap = await storeRef.get();
-        let currentExpiry = Date.now();
-
-        if (snap.exists && snap.data().license && snap.data().license.expiresAt > Date.now()) {
-          currentExpiry = snap.data().license.expiresAt;
-        }
-
-        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-        const newExpiry = currentExpiry + thirtyDaysMs;
-
-        const updatedLic = {
-          expiresAt: newExpiry,
-          type: "pro",
-          revoked: false
-        };
-
-        await storeRef.set({
-          license: updatedLic,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        showToast(`Dispositivo ${targetId} renovado por +30 dias na nuvem!`, "success");
-      } catch (e) {
-        console.error("Erro ao renovar:", e);
-        showToast("Erro ao renovar na nuvem.", "error");
-      }
     }
 
     async function loadAdminKeysFromCloud() {
@@ -1101,17 +1030,18 @@
 
         container.innerHTML = snap.docs.map(doc => {
           const d = doc.data();
+          const usedCount = (d.usedDevices || []).length;
           return `
             <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
               <div>
                 <p class="notranslate font-mono font-bold text-amber-400">${d.key}</p>
-                <p class="notranslate text-[10px] text-slate-400">${d.deviceId} • ${d.used ? '🔴 Usada' : '🟢 Disponível'}</p>
+                <p class="notranslate text-[10px] text-slate-400">Tel: ${d.phone} • Usos: ${usedCount}/2</p>
               </div>
               <div class="flex items-center gap-1.5">
                 <button type="button" onclick="copyTextToClipboard('${d.key}', 'Chave copiada!')" class="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200" title="Copiar">
                   <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                 </button>
-                <button type="button" onclick="deleteAdminKey('${d.key}', '${d.deviceId || ''}')" class="p-1.5 bg-rose-950 hover:bg-rose-900 rounded-lg text-rose-300" title="Excluir Chave e Revogar Acesso">
+                <button type="button" onclick="deleteAdminKey('${d.key}')" class="p-1.5 bg-rose-950 hover:bg-rose-900 rounded-lg text-rose-300" title="Excluir Chave">
                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
@@ -1124,38 +1054,24 @@
       }
     }
 
-    async function deleteAdminKey(keyStr, targetDeviceId) {
-      if (!confirm(`Deseja excluir a chave ${keyStr} e REVOGAR o acesso do dispositivo ${targetDeviceId || 'associado'} imediatamente?`)) return;
-      
+    async function deleteAdminKey(keyStr) {
+      if (!confirm(`Deseja excluir a chave ${keyStr}?`)) return;
       if (db) {
         try {
           await db.collection("licenses").doc(keyStr).delete();
-
-          if (targetDeviceId) {
-            await db.collection("stores").doc(targetDeviceId).set({
-              license: {
-                expiresAt: Date.now() - 1000,
-                type: "revoked",
-                revoked: true
-              },
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-          }
-
-          showToast("Chave excluída e acesso revogado com sucesso!", "success");
+          showToast("Chave excluída com sucesso!", "success");
           loadAdminKeysFromCloud();
         } catch (e) {
-          console.error("Erro ao excluir chave:", e);
-          showToast("Erro ao excluir chave na nuvem.", "error");
+          showToast("Erro ao excluir chave.", "error");
         }
       }
     }
 
     function sendGeneratedKeyWhatsApp() {
       if (!lastGeneratedKey) return;
-      const targetId = normalizeCodeString(document.getElementById("admin-target-device").value);
-      const msg = encodeURIComponent(`✅ *Acesso Liberado - Lava Rápido Pro!*\n\n📱 *WhatsApp / ID:* ${targetId}\n🔑 *Chave (+30 Dias):*\n*${lastGeneratedKey}*\n\nBasta colar a chave no aplicativo para liberar seu acesso. Obrigado!`);
-      window.open(`https://wa.me/?text=${msg}`, "_blank");
+      const targetPhone = document.getElementById("admin-target-phone").value.replace(/\D/g, "");
+      const msg = encodeURIComponent(`✅ *Acesso Liberado - Lava Rápido Pro!*\n\n📱 *WhatsApp:* ${targetPhone}\n🔑 *Chave (+30 Dias - Até 2 Aparelhos):*\n*${lastGeneratedKey}*\n\nBasta digitar seu WhatsApp e esta chave no aplicativo para liberar o acesso.`);
+      window.open(`https://wa.me/55${targetPhone}?text=${msg}`, "_blank");
     }
 
     function changeAdminPassword() {
