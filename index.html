@@ -59,7 +59,7 @@
         </div>
         <h1 class="text-2xl font-extrabold tracking-tight">Período de Acesso Encerrado</h1>
         <p class="text-slate-400 text-sm">
-          Informe seu WhatsApp cadastrado e a chave de liberação (permite até 2 dispositivos).
+          Informe seu WhatsApp cadastrado e insira a chave de liberação, ou solicite diretamente pelo WhatsApp.
         </p>
       </div>
 
@@ -76,6 +76,11 @@
 
         <button type="button" onclick="activateLicenseWithPhoneAndKey('lock-phone-input', 'lock-key-input')" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition active:scale-[0.98]">
           Ativar Acesso
+        </button>
+
+        <button type="button" onclick="requestKeyViaWhatsAppFromLock()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          Solicitar Chave via WhatsApp
         </button>
       </div>
 
@@ -391,16 +396,20 @@
 
       <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
         <div>
-          <span class="text-[11px] font-bold uppercase text-slate-400">WhatsApp / ID Vinculado</span>
-          <p id="modal-lic-device" class="notranslate font-mono font-extrabold text-slate-900 text-base">WHATS-0000000000</p>
+          <span class="text-[11px] font-bold uppercase text-slate-400">WhatsApp Vinculado</span>
+          <p id="modal-lic-device" class="notranslate font-mono font-extrabold text-slate-900 text-base">--</p>
         </div>
       </div>
 
       <div class="space-y-2.5 pt-1">
-        <label class="block text-xs font-bold text-slate-700">Ativar Nova Chave (Permite até 2 aparelhos):</label>
+        <label class="block text-xs font-bold text-slate-700">Ativar Chave de Liberação:</label>
         <input type="text" id="modal-key-input" placeholder="LAVA30-XXXX-XXXXXX" class="notranslate w-full border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono text-sm uppercase select-auto" style="-webkit-user-select: text; user-select: text;" />
         <button type="button" onclick="activateLicenseModalKey()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm">
           Ativar Chave
+        </button>
+        <button type="button" onclick="requestKeyViaWhatsAppFromModal()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2">
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          Solicitar Chave via WhatsApp
         </button>
       </div>
     </div>
@@ -505,6 +514,8 @@
       appId: "1:1060198007406:web:f8a7c98a7e9a0d36189c7f",
       measurementId: "G-TT2GNSD6YE"
     };
+
+    const ADMIN_WHATSAPP = "5519989450061";
 
     let db = null;
     try {
@@ -630,6 +641,26 @@
       }
     }
 
+    function requestKeyViaWhatsAppFromLock() {
+      const phoneInput = document.getElementById("lock-phone-input");
+      const cleanPhone = phoneInput ? phoneInput.value.replace(/\D/g, "") : "";
+      
+      if (cleanPhone.length < 10) {
+        showToast("Por favor, digite seu número de WhatsApp com DDD acima antes de solicitar.", "error");
+        if (phoneInput) phoneInput.focus();
+        return;
+      }
+
+      const msg = encodeURIComponent(`Olá! Gostaria de solicitar a chave de liberação (30 dias) para o meu WhatsApp: ${cleanPhone}. Aguardo instruções de pagamento/liberação.`);
+      window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${msg}`, "_blank");
+    }
+
+    function requestKeyViaWhatsAppFromModal() {
+      const currentId = getDeviceId().replace("WHATS-", "");
+      const msg = encodeURIComponent(`Olá! Gostaria de solicitar a chave de liberação (30 dias) para o meu WhatsApp: ${currentId}. Aguardo instruções de pagamento/liberação.`);
+      window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${msg}`, "_blank");
+    }
+
     function computeLicenseHash(phoneNum, salt) {
       const raw = `${normalizeCodeString(phoneNum)}-${normalizeCodeString(salt)}-${SECRET_SALT}`;
       let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
@@ -659,7 +690,7 @@
     async function initCloudSyncAndLicense() {
       const deviceId = getDeviceId();
       document.getElementById("settings-device-id").textContent = deviceId;
-      document.getElementById("modal-lic-device").textContent = deviceId;
+      document.getElementById("modal-lic-device").textContent = deviceId.replace("WHATS-", "");
 
       const savedLocalData = localStorage.getItem(STORAGE_KEYS.DATA);
       if (savedLocalData) {
@@ -906,7 +937,6 @@
 
     async function activateLicenseModalKey() {
       const phoneNum = getDeviceId().replace("WHATS-", "");
-      // Cria temporariamente um input para reusar a validação
       const tempInput = document.createElement("input");
       tempInput.value = phoneNum;
       tempInput.id = "temp-phone-val";
